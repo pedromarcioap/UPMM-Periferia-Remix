@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
@@ -19,7 +19,12 @@ import {
   Image as ImageIcon, 
   AlertTriangle,
   CheckCircle,
-  Loader2
+  Loader2,
+  Search,
+  Globe,
+  Folder,
+  ExternalLink,
+  LogIn
 } from "lucide-react";
 
 const AVAILABLE_TAGS = [
@@ -35,6 +40,33 @@ const AVAILABLE_TAGS = [
   "Esporte",
 ];
 
+// Quick search tags for periphery-related content
+const QUICK_SEARCH_TAGS = [
+  { label: "Periferia", query: "favela brazil" },
+  { label: "Street Art", query: "street art graffiti" },
+  { label: "Urbano", query: "urban street" },
+  { label: "Arquitetura", query: "urban architecture" },
+  { label: "Cores", query: "colorful street" },
+  { label: "Cultura", query: "culture people" },
+];
+
+interface PexelsPhoto {
+  id: number;
+  width: number;
+  height: number;
+  photographer: string;
+  photographerUrl: string;
+  avgColor: string;
+  alt: string;
+  src: {
+    original: string;
+    large: string;
+    medium: string;
+    small: string;
+    portrait: string;
+  };
+}
+
 interface UploadModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -42,7 +74,10 @@ interface UploadModalProps {
 }
 
 export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const isLoggedIn = status === "authenticated" && session?.user?.id;
+  
+  const [activeSource, setActiveSource] = useState<"local" | "online">("local");
   const [step, setStep] = useState<"guidelines" | "upload" | "details" | "uploading">("guidelines");
   const [image, setImage] = useState<string | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -51,6 +86,81 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Pexels search state
+  const [searchQuery, setSearchQuery] = useState("");
+  const [searchResults, setSearchResults] = useState<PexelsPhoto[]>([]);
+  const [loadingSearch, setLoadingSearch] = useState(false);
+  const [selectedPexelsPhoto, setSelectedPexelsPhoto] = useState<PexelsPhoto | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalResults, setTotalResults] = useState(0);
+
+  // Search Pexels images
+  const searchPexels = useCallback(async (query: string, page: number = 1) => {
+    if (!query.trim()) return;
+    
+    setLoadingSearch(true);
+    try {
+      const res = await fetch(`/api/pexels?query=${encodeURIComponent(query)}&page=${page}&per_page=15`);
+      const data = await res.json();
+      
+      if (page === 1) {
+        setSearchResults(data.photos || []);
+      } else {
+        setSearchResults(prev => [...prev, ...(data.photos || [])]);
+      }
+      setTotalResults(data.totalResults || 0);
+      setCurrentPage(page);
+    } catch (err) {
+      console.error("Error searching Pexels:", err);
+    } finally {
+      setLoadingSearch(false);
+    }
+  }, []);
+
+  // Load more results
+  const loadMore = useCallback(() => {
+    if (!loadingSearch && searchResults.length < totalResults) {
+      searchPexels(searchQuery, currentPage + 1);
+    }
+  }, [loadingSearch, searchResults.length, totalResults, searchQuery, currentPage, searchPexels]);
+
+  // Handle search input
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    setCurrentPage(1);
+    searchPexels(searchQuery, 1);
+  };
+
+  // Handle quick tag click
+  const handleQuickTag = (query: string) => {
+    setSearchQuery(query);
+    setCurrentPage(1);
+    searchPexels(query, 1);
+  };
+
+  // Handle Pexels photo selection
+  const handleSelectPexelsPhoto = async (photo: PexelsPhoto) => {
+    setSelectedPexelsPhoto(photo);
+    
+    try {
+      // Fetch the image and convert to base64
+      const response = await fetch(photo.src.large);
+      const blob = await response.blob();
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImage(e.target?.result as string);
+        setImageFile(null);
+        setStep("details");
+      };
+      reader.readAsDataURL(blob);
+    } catch (err) {
+      // Fallback: use the URL directly
+      setImage(photo.src.large);
+      setImageFile(null);
+      setStep("details");
+    }
+  };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -65,6 +175,7 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
       }
       
       setImageFile(file);
+      setSelectedPexelsPhoto(null);
       const reader = new FileReader();
       reader.onload = (e) => {
         setImage(e.target?.result as string);
@@ -94,12 +205,6 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
     setError("");
 
     try {
-      // Convert base64 to blob for upload
-      const response = await fetch(image);
-      const blob = await response.blob();
-      
-      // For MVP, we'll use the base64 image directly
-      // In production, you'd upload to a CDN/storage service
       const res = await fetch("/api/photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -110,6 +215,11 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
           thumbnailUrl: image,
           tags: selectedTags,
           authorId: session.user.id,
+          source: selectedPexelsPhoto ? {
+            type: "pexels",
+            photographer: selectedPexelsPhoto.photographer,
+            photographerUrl: selectedPexelsPhoto.photographerUrl,
+          } : null,
         }),
       });
 
@@ -127,22 +237,33 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
 
   const handleClose = () => {
     setStep("guidelines");
+    setActiveSource("local");
     setImage(null);
     setImageFile(null);
     setTitle("");
     setDescription("");
     setSelectedTags([]);
     setError("");
+    setSearchQuery("");
+    setSearchResults([]);
+    setSelectedPexelsPhoto(null);
+    setCurrentPage(1);
     onOpenChange(false);
   };
 
+  // Show login prompt if not logged in
+  const showLoginPrompt = !isLoggedIn && step !== "guidelines";
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-lg rounded-3xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="sm:max-w-2xl rounded-3xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle className="text-2xl font-black uppercase text-center">
             Nova Foto
           </DialogTitle>
+          <DialogDescription className="text-center">
+            Compartilhe uma imagem local ou busque online
+          </DialogDescription>
         </DialogHeader>
 
         <AnimatePresence mode="wait">
@@ -186,6 +307,18 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
                 </ul>
               </div>
 
+              {!isLoggedIn && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center gap-3">
+                  <LogIn className="w-6 h-6 text-red-500 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-bold text-red-700">Login Necessário</h4>
+                    <p className="text-sm text-red-600">
+                      Você precisa estar logado para fazer upload ou remixar imagens.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               <Button 
                 onClick={() => setStep("upload")}
                 className="btn-upmm w-full"
@@ -195,7 +328,7 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
             </motion.div>
           )}
 
-          {/* Step 2: Upload */}
+          {/* Step 2: Upload / Search */}
           {step === "upload" && (
             <motion.div
               key="upload"
@@ -204,27 +337,169 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
               exit={{ opacity: 0, x: 20 }}
               className="space-y-6 py-4"
             >
-              <div
-                onClick={() => fileInputRef.current?.click()}
-                className="border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center cursor-pointer hover:border-[#FFB800] hover:bg-[#FFB800]/5 transition-all"
-              >
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileSelect}
-                  className="hidden"
-                />
-                <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#FFB800]/10 flex items-center justify-center">
-                  <ImageIcon className="w-8 h-8 text-[#FFB800]" />
-                </div>
-                <p className="font-bold text-[#2D2A26] mb-1">
-                  Clique para selecionar uma imagem
-                </p>
-                <p className="text-sm text-gray-500">
-                  PNG, JPG ou WEBP até 10MB
-                </p>
+              {/* Source Tabs */}
+              <div className="flex gap-2 p-1 bg-gray-100 rounded-2xl">
+                <button
+                  onClick={() => setActiveSource("local")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${
+                    activeSource === "local"
+                      ? "bg-white text-[#2D2A26] shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Folder className="w-4 h-4" />
+                  Arquivo Local
+                </button>
+                <button
+                  onClick={() => setActiveSource("online")}
+                  className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all ${
+                    activeSource === "online"
+                      ? "bg-white text-[#2D2A26] shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  <Globe className="w-4 h-4" />
+                  Busca Online
+                </button>
               </div>
+
+              {/* Local Upload */}
+              {activeSource === "local" && (
+                <div
+                  onClick={() => isLoggedIn && fileInputRef.current?.click()}
+                  className={`border-2 border-dashed border-gray-200 rounded-2xl p-8 text-center transition-all ${
+                    isLoggedIn 
+                      ? "cursor-pointer hover:border-[#FFB800] hover:bg-[#FFB800]/5" 
+                      : "opacity-50 cursor-not-allowed"
+                  }`}
+                >
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileSelect}
+                    className="hidden"
+                    disabled={!isLoggedIn}
+                  />
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-[#FFB800]/10 flex items-center justify-center">
+                    <ImageIcon className="w-8 h-8 text-[#FFB800]" />
+                  </div>
+                  <p className="font-bold text-[#2D2A26] mb-1">
+                    {isLoggedIn ? "Clique para selecionar uma imagem" : "Login necessário para upload"}
+                  </p>
+                  <p className="text-sm text-gray-500">
+                    PNG, JPG ou WEBP até 10MB
+                  </p>
+                </div>
+              )}
+
+              {/* Online Search */}
+              {activeSource === "online" && (
+                <div className="space-y-4">
+                  {/* Search Bar */}
+                  <form onSubmit={handleSearch} className="relative">
+                    <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Buscar imagens..."
+                      className="w-full pl-12 pr-4 py-3 rounded-2xl border-2 border-gray-200 focus:border-[#FFB800] focus:ring-0 outline-none font-medium"
+                    />
+                    <Button 
+                      type="submit"
+                      className="absolute right-2 top-1/2 -translate-y-1/2 btn-upmm rounded-xl"
+                      disabled={!isLoggedIn}
+                    >
+                      Buscar
+                    </Button>
+                  </form>
+
+                  {/* Quick Tags */}
+                  <div className="flex flex-wrap gap-2">
+                    {QUICK_SEARCH_TAGS.map((tag) => (
+                      <button
+                        key={tag.label}
+                        onClick={() => handleQuickTag(tag.query)}
+                        disabled={!isLoggedIn}
+                        className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                          searchQuery === tag.query
+                            ? "bg-[#FFB800] text-[#2D2A26]"
+                            : isLoggedIn
+                              ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                              : "bg-gray-50 text-gray-400 cursor-not-allowed"
+                        }`}
+                      >
+                        {tag.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Login Warning */}
+                  {!isLoggedIn && (
+                    <div className="bg-yellow-50 border border-yellow-200 rounded-xl p-4 text-center">
+                      <LogIn className="w-6 h-6 mx-auto mb-2 text-yellow-600" />
+                      <p className="text-sm font-medium text-yellow-700">
+                        Faça login para buscar e selecionar imagens
+                      </p>
+                    </div>
+                  )}
+
+                  {/* Search Results Grid */}
+                  {isLoggedIn && searchResults.length > 0 && (
+                    <div className="space-y-3">
+                      <div className="grid grid-cols-3 gap-2 max-h-[300px] overflow-y-auto rounded-xl">
+                        {searchResults.map((photo) => (
+                          <button
+                            key={photo.id}
+                            onClick={() => handleSelectPexelsPhoto(photo)}
+                            className="relative aspect-square rounded-lg overflow-hidden group"
+                            style={{ backgroundColor: photo.avgColor }}
+                          >
+                            <img
+                              src={photo.src.small}
+                              alt={photo.alt}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-110"
+                            />
+                            <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                              <ExternalLink className="w-5 h-5 text-white opacity-0 group-hover:opacity-100 transition-opacity" />
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                      
+                      {searchResults.length < totalResults && (
+                        <Button
+                          variant="outline"
+                          onClick={loadMore}
+                          disabled={loadingSearch}
+                          className="w-full rounded-xl"
+                        >
+                          {loadingSearch ? (
+                            <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                          ) : null}
+                          Carregar mais
+                        </Button>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Loading State */}
+                  {loadingSearch && searchResults.length === 0 && (
+                    <div className="flex items-center justify-center py-12">
+                      <Loader2 className="w-8 h-8 text-[#FFB800] animate-spin" />
+                    </div>
+                  )}
+
+                  {/* Empty State */}
+                  {isLoggedIn && !loadingSearch && searchQuery && searchResults.length === 0 && (
+                    <div className="text-center py-8 text-gray-500">
+                      <ImageIcon className="w-12 h-12 mx-auto mb-3 opacity-30" />
+                      <p>Nenhuma imagem encontrada</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               {error && (
                 <p className="text-red-500 text-sm text-center">{error}</p>
@@ -241,6 +516,19 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
               exit={{ opacity: 0, x: 20 }}
               className="space-y-6 py-4"
             >
+              {/* Login Required Warning */}
+              {!isLoggedIn && (
+                <div className="bg-red-50 border-2 border-red-200 rounded-2xl p-4 flex items-center gap-3">
+                  <LogIn className="w-6 h-6 text-red-500 flex-shrink-0" />
+                  <div>
+                    <h4 className="font-bold text-red-700">Login Necessário</h4>
+                    <p className="text-sm text-red-600">
+                      Faça login para publicar esta imagem.
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Preview */}
               <div className="relative aspect-video rounded-2xl overflow-hidden bg-gray-100">
                 <img 
@@ -259,6 +547,23 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
                 </button>
               </div>
 
+              {/* Source Attribution */}
+              {selectedPexelsPhoto && (
+                <div className="bg-gray-50 rounded-xl p-3 flex items-center gap-2 text-sm">
+                  <Globe className="w-4 h-4 text-gray-400" />
+                  <span className="text-gray-500">Foto por</span>
+                  <a 
+                    href={selectedPexelsPhoto.photographerUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-[#FFB800] font-medium hover:underline"
+                  >
+                    {selectedPexelsPhoto.photographer}
+                  </a>
+                  <span className="text-gray-400">via Pexels</span>
+                </div>
+              )}
+
               {/* Form */}
               <div className="space-y-4">
                 <div>
@@ -271,6 +576,7 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
                     placeholder="Dê um título para sua foto"
                     className="input-upmm"
                     maxLength={100}
+                    disabled={!isLoggedIn}
                   />
                 </div>
 
@@ -284,6 +590,7 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
                     placeholder="Conte um pouco sobre a foto..."
                     className="input-upmm min-h-[80px] resize-none"
                     maxLength={500}
+                    disabled={!isLoggedIn}
                   />
                 </div>
 
@@ -295,12 +602,15 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
                     {AVAILABLE_TAGS.map((tag) => (
                       <button
                         key={tag}
-                        onClick={() => toggleTag(tag)}
+                        onClick={() => isLoggedIn && toggleTag(tag)}
                         className={`px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
                           selectedTags.includes(tag)
                             ? "bg-[#FFB800] text-[#2D2A26]"
-                            : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                            : isLoggedIn
+                              ? "bg-gray-100 text-gray-600 hover:bg-gray-200"
+                              : "bg-gray-50 text-gray-400 cursor-not-allowed"
                         }`}
+                        disabled={!isLoggedIn}
                       >
                         #{tag}
                       </button>
@@ -326,7 +636,7 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
                 </Button>
                 <Button 
                   onClick={handleUpload}
-                  disabled={!title || selectedTags.length < 3}
+                  disabled={!isLoggedIn || !title || selectedTags.length < 3}
                   className="btn-upmm flex-1"
                 >
                   <Upload className="w-4 h-4 mr-2" />

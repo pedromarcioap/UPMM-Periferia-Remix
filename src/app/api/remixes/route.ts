@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getServerSession } from "next-auth";
 
 // GET - List remixes
 export async function GET(request: NextRequest) {
@@ -40,19 +41,47 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new remix
+// POST - Create new remix (requires authentication)
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const session = await getServerSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ 
+        error: "Autenticação necessária",
+        message: "Você precisa estar logado para criar remixes."
+      }, { status: 401 });
+    }
+
     const body = await request.json();
     const { title, imageUrl, originalPhotoId, creatorId } = body;
+
+    // Validate that the authenticated user matches the creatorId
+    if (creatorId !== session.user.id) {
+      return NextResponse.json({ 
+        error: "Não autorizado",
+        message: "Você só pode criar remixes em nome da sua própria conta."
+      }, { status: 403 });
+    }
 
     if (!imageUrl || !originalPhotoId || !creatorId) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
     }
 
+    // Verify the original photo exists
+    const originalPhoto = await prisma.photo.findUnique({
+      where: { id: originalPhotoId },
+    });
+
+    if (!originalPhoto) {
+      return NextResponse.json({ 
+        error: "Foto original não encontrada" 
+      }, { status: 404 });
+    }
+
     const remix = await prisma.remix.create({
       data: {
-        title,
+        title: title || "Remix sem título",
         imageUrl,
         originalPhotoId,
         creatorId,
@@ -85,6 +114,21 @@ export async function POST(request: NextRequest) {
         });
       }
     }
+
+    // Update user's vibe points
+    await prisma.user.update({
+      where: { id: creatorId },
+      data: { vibePoints: { increment: 15 } },
+    });
+
+    // Increment remix count on original photo
+    await prisma.photo.update({
+      where: { id: originalPhotoId },
+      data: { 
+        remixCount: { increment: 1 },
+        vibeCount: { increment: 1 },
+      },
+    });
 
     return NextResponse.json(remix);
   } catch (error) {

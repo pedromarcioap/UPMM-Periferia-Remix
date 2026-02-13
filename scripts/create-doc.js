@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports */
 const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, Header, Footer, 
         AlignmentType, LevelFormat, HeadingLevel, BorderStyle, WidthType, 
         ShadingType, VerticalAlign, PageNumber, PageBreak } = require('docx');

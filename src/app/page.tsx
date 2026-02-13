@@ -19,7 +19,8 @@ import {
   Filter, 
   Search,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  LogIn
 } from "lucide-react";
 import { useAppStore, Photo, Remix } from "@/store/useAppStore";
 
@@ -36,6 +37,8 @@ const TAGS = [
 
 export default function HomePage() {
   const { data: session, status } = useSession();
+  const isLoggedIn = status === "authenticated" && session?.user?.id;
+  
   const {
     activeTab,
     setActiveTab,
@@ -55,6 +58,7 @@ export default function HomePage() {
   const [showProfile, setShowProfile] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
 
   // Fetch photos
   const fetchPhotos = useCallback(async () => {
@@ -93,7 +97,11 @@ export default function HomePage() {
 
   // Handle remix save
   const handleRemixSave = async (imageUrl: string) => {
-    if (!editingPhoto || !session?.user?.id) return;
+    if (!editingPhoto || !session?.user?.id) {
+      setShowLoginPrompt(true);
+      setTimeout(() => setShowLoginPrompt(false), 3000);
+      return;
+    }
     
     try {
       const res = await fetch("/api/remixes", {
@@ -119,6 +127,16 @@ export default function HomePage() {
 
   const handleUploadSuccess = () => {
     fetchPhotos();
+  };
+
+  const handleRemixClick = (photo: Photo) => {
+    if (!isLoggedIn) {
+      setShowLoginPrompt(true);
+      setTimeout(() => setShowLoginPrompt(false), 3000);
+      return;
+    }
+    setEditingPhoto(photo);
+    setShowEditor(true);
   };
 
   const filteredPhotos = photos.filter(photo => {
@@ -162,7 +180,14 @@ export default function HomePage() {
 
             <div className="flex flex-wrap justify-center gap-4">
               <Button
-                onClick={() => setShowUpload(true)}
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    setShowLoginPrompt(true);
+                    setTimeout(() => setShowLoginPrompt(false), 3000);
+                  } else {
+                    setShowUpload(true);
+                  }
+                }}
                 className="btn-upmm text-lg px-8"
               >
                 <Camera className="w-5 h-5 mr-2" />
@@ -170,15 +195,48 @@ export default function HomePage() {
               </Button>
               <Button
                 variant="outline"
+                onClick={() => {
+                  if (!isLoggedIn) {
+                    setShowLoginPrompt(true);
+                    setTimeout(() => setShowLoginPrompt(false), 3000);
+                  }
+                }}
                 className="btn-upmm-outline text-lg px-8 border-white text-white hover:bg-white hover:text-[#2D2A26]"
               >
                 <Sparkles className="w-5 h-5 mr-2" />
                 Remixar
               </Button>
             </div>
+
+            {/* Login Prompt */}
+            {!isLoggedIn && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-6 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-white/10 backdrop-blur-sm"
+              >
+                <LogIn className="w-4 h-4 text-[#FFB800]" />
+                <span className="text-sm">Faça login para fazer upload e remixar</span>
+              </motion.div>
+            )}
           </motion.div>
         </div>
       </section>
+
+      {/* Login Prompt Toast */}
+      <AnimatePresence>
+        {showLoginPrompt && (
+          <motion.div
+            initial={{ opacity: 0, y: -50, x: "-50%" }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -50 }}
+            className="fixed top-20 left-1/2 z-50 bg-[#2D2A26] text-white px-6 py-3 rounded-2xl shadow-xl flex items-center gap-3"
+          >
+            <LogIn className="w-5 h-5 text-[#FFB800]" />
+            <span className="font-medium">Faça login para continuar</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
@@ -242,7 +300,17 @@ export default function HomePage() {
             <Camera className="w-16 h-16 mx-auto mb-4 text-gray-200" />
             <h3 className="text-xl font-bold text-gray-600 mb-2">Nenhuma foto encontrada</h3>
             <p className="text-gray-400 mb-6">Seja o primeiro a compartilhar!</p>
-            <Button onClick={() => setShowUpload(true)} className="btn-upmm">
+            <Button 
+              onClick={() => {
+                if (!isLoggedIn) {
+                  setShowLoginPrompt(true);
+                  setTimeout(() => setShowLoginPrompt(false), 3000);
+                } else {
+                  setShowUpload(true);
+                }
+              }} 
+              className="btn-upmm"
+            >
               <Camera className="w-4 h-4 mr-2" />
               Fazer Upload
             </Button>
@@ -264,10 +332,7 @@ export default function HomePage() {
                 >
                   <PhotoCard
                     photo={photo}
-                    onRemix={() => {
-                      setEditingPhoto(photo);
-                      setShowEditor(true);
-                    }}
+                    onRemix={() => handleRemixClick(photo)}
                     onLike={() => {}}
                     onView={() => {}}
                   />

@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Heart, MessageCircle, Sparkles, Globe, Eye } from "lucide-react";
+import { Heart, MessageCircle, Sparkles, Globe, Eye, LogIn } from "lucide-react";
 import { Photo } from "@/store/useAppStore";
 import { useSession } from "next-auth/react";
 import { formatDistanceToNow } from "date-fns";
@@ -16,10 +16,12 @@ interface PhotoCardProps {
 }
 
 export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
+  const isLoggedIn = status === "authenticated" && session?.user?.id;
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(photo.vibeCount);
   const [imageLoaded, setImageLoaded] = useState(false);
+  const [showLoginTooltip, setShowLoginTooltip] = useState(false);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -45,6 +47,18 @@ export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
     setLiked(data.liked);
     setLikeCount(prev => data.liked ? prev + 1 : prev - 1);
     onLike();
+  };
+
+  const handleRemixClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    
+    if (!isLoggedIn) {
+      setShowLoginTooltip(true);
+      setTimeout(() => setShowLoginTooltip(false), 3000);
+      return;
+    }
+    
+    onRemix();
   };
 
   const tags = photo.tags.split(",").filter(Boolean);
@@ -94,15 +108,40 @@ export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
           initial={{ opacity: 0, scale: 0.8 }}
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
-          onClick={(e) => {
-            e.stopPropagation();
-            onRemix();
-          }}
-          className="absolute bottom-3 right-3 px-4 py-2 rounded-2xl bg-[#FFB800] text-[#2D2A26] font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity shadow-lg flex items-center gap-2"
+          onClick={handleRemixClick}
+          className={`absolute bottom-3 right-3 px-4 py-2 rounded-2xl font-bold text-sm opacity-0 group-hover:opacity-100 transition-opacity shadow-lg flex items-center gap-2 ${
+            isLoggedIn 
+              ? "bg-[#FFB800] text-[#2D2A26]" 
+              : "bg-gray-700 text-white"
+          }`}
         >
-          <Sparkles className="w-4 h-4" />
-          Remixar
+          {!isLoggedIn ? (
+            <>
+              <LogIn className="w-4 h-4" />
+              Logar para Remixar
+            </>
+          ) : (
+            <>
+              <Sparkles className="w-4 h-4" />
+              Remixar
+            </>
+          )}
         </motion.button>
+
+        {/* Login Tooltip */}
+        {showLoginTooltip && (
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            className="absolute bottom-16 right-3 bg-[#2D2A26] text-white px-4 py-2 rounded-xl text-sm shadow-xl"
+          >
+            <div className="flex items-center gap-2">
+              <LogIn className="w-4 h-4 text-[#FFB800]" />
+              <span>Faça login para remixar!</span>
+            </div>
+          </motion.div>
+        )}
       </div>
 
       {/* Content */}
@@ -149,11 +188,13 @@ export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
             whileTap={{ scale: 0.9 }}
             onClick={(e) => {
               e.stopPropagation();
-              handleLike();
+              if (isLoggedIn) {
+                handleLike();
+              }
             }}
             className={`flex items-center gap-1.5 transition-colors ${
               liked ? "text-red-500" : "text-gray-400 hover:text-red-500"
-            }`}
+            } ${!isLoggedIn ? "opacity-50" : ""}`}
           >
             <Heart className={`w-4 h-4 ${liked ? "fill-current" : ""}`} />
             <span className="text-xs font-medium">{likeCount}</span>

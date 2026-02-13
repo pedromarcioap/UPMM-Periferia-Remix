@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/db";
+import { getServerSession } from "next-auth";
 
 // GET - List photos
 export async function GET(request: NextRequest) {
@@ -61,11 +62,28 @@ export async function GET(request: NextRequest) {
   }
 }
 
-// POST - Create new photo
+// POST - Create new photo (requires authentication)
 export async function POST(request: NextRequest) {
   try {
+    // Check authentication
+    const session = await getServerSession();
+    if (!session?.user?.id) {
+      return NextResponse.json({ 
+        error: "Autenticação necessária",
+        message: "Você precisa estar logado para fazer upload de fotos."
+      }, { status: 401 });
+    }
+
     const body = await request.json();
-    const { title, description, imageUrl, thumbnailUrl, tags, authorId } = body;
+    const { title, description, imageUrl, thumbnailUrl, tags, authorId, source } = body;
+
+    // Validate that the authenticated user matches the authorId
+    if (authorId !== session.user.id) {
+      return NextResponse.json({ 
+        error: "Não autorizado",
+        message: "Você só pode fazer upload em nome da sua própria conta."
+      }, { status: 403 });
+    }
 
     if (!title || !imageUrl || !authorId) {
       return NextResponse.json({ error: "Dados incompletos" }, { status: 400 });
@@ -79,6 +97,12 @@ export async function POST(request: NextRequest) {
         thumbnailUrl: thumbnailUrl || imageUrl,
         tags: tags.join(","),
         authorId,
+        // Store source attribution if provided
+        ...(source && { 
+          description: description 
+            ? `${description}\n\nFonte: ${source.type} - Foto por ${source.photographer}`
+            : `Fonte: ${source.type} - Foto por ${source.photographer}`
+        }),
       },
       include: {
         author: {
@@ -101,6 +125,12 @@ export async function POST(request: NextRequest) {
         });
       }
     }
+
+    // Update user's responsa points
+    await prisma.user.update({
+      where: { id: authorId },
+      data: { responsaPoints: { increment: 10 } },
+    });
 
     return NextResponse.json(photo);
   } catch (error) {
