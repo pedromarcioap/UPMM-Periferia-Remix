@@ -50,3 +50,27 @@ Stage Summary:
 - Tratamento de erros mais robusto sem lançamento de exceções no fluxo NextAuth
 - Tipos TypeScript atualizados para incluir campos customizados (vibePoints, responsaPoints, level, role)
 - Commit: 870dc37 - "fix: corrige autenticação de login e cadastro"
+
+---
+Task ID: 3
+Agent: Main Agent
+Task: Criar guia completo do banco de dados Prisma
+
+Work Log:
+- Criado guia detalhado em /download/GUIA_PRISMA_BANCO_DADOS.md
+- Explicação do que é Prisma ORM e sua arquitetura
+- Documentação de todos os modelos do banco (User, Photo, Remix, etc.)
+- Passo a passo de configuração do ambiente
+- Comandos essenciais do Prisma (generate, db push, studio, etc.)
+- Como usar Prisma Studio para visualizar/editar dados
+- Consultas diretas via SQLite
+- Exemplos de código TypeScript para queries
+- Solução de problemas comuns (incluindo erro DATABASE_URL)
+- Procedimentos de backup e restore
+- Criado script /scripts/check-db.ts para verificar status do banco
+
+Stage Summary:
+- Guia completo disponível em /download/GUIA_PRISMA_BANCO_DADOS.md
+- Banco de dados funcionando: 6 usuários, 28 fotos, 8 remixes
+- Script de verificação criado e testado
+- Commit: e574ff7 - "docs: adiciona guia completo do banco de dados Prisma"
