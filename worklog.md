@@ -29,3 +29,24 @@ Stage Summary:
 - Dashboard admin para curadoria e sincronização externa
 - Interface responsiva e visualmente impactante seguindo identidade UPMM
 - Banco de dados SQLite populado com 12 fotos de exemplo, 4 usuários e 3 badges
+
+---
+Task ID: 2
+Agent: Main Agent
+Task: Correção do sistema de autenticação (login/cadastro)
+
+Work Log:
+- Identificado problema: NextAuth com CredentialsProvider não lidava bem com erros lançados via throw new Error
+- Criada API separada /api/auth/register para cadastro de usuários com bcrypt para hash de senhas
+- Corrigido header.tsx para usar signIn() do next-auth/react corretamente com redirect: false
+- Separado fluxo de cadastro (API register + signIn) do fluxo de login (apenas signIn)
+- Atualizada rota NextAuth para retornar null em vez de lançar erros
+- Criado arquivo de tipos TypeScript em /src/types/next-auth.d.ts para campos customizados
+- Adicionado debug: true em desenvolvimento para facilitar troubleshooting
+
+Stage Summary:
+- Sistema de login agora funciona corretamente com feedback de erro adequado
+- Sistema de cadastro cria usuário via API dedicada e faz login automático
+- Tratamento de erros mais robusto sem lançamento de exceções no fluxo NextAuth
+- Tipos TypeScript atualizados para incluir campos customizados (vibePoints, responsaPoints, level, role)
+- Commit: 870dc37 - "fix: corrige autenticação de login e cadastro"
