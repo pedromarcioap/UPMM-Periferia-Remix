@@ -3,7 +3,16 @@
 
 import { PrismaClient } from '@prisma/client'
 
-const prisma = new PrismaClient()
+// Use a URL diretamente se a variável de ambiente não for lida corretamente
+const databaseUrl = process.env.DATABASE_URL || "postgresql://postgres.vtturkgwzjhcaldpcaqf:PTFvicZ4BpjYP6q@aws-1-us-east-1.pooler.supabase.com:5432/postgres";
+
+const prisma = new PrismaClient({
+  datasources: {
+    db: {
+      url: databaseUrl
+    }
+  }
+})
 
 async function main() {
   console.log('🔍 Verificando banco de dados UPMM...\n')

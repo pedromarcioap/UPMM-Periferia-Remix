@@ -436,11 +436,8 @@ async function main() {
     const location = PALMAS_LOCATIONS[photoData.locationIndex];
     const authorId = users[i % users.length].id;
 
-    await prisma.photo.upsert({
-      where: { id: `photo-palmas-${i + 1}` },
-      update: {},
-      create: {
-        id: `photo-palmas-${i + 1}`,
+    await prisma.photo.create({
+      data: {
         title: photoData.title,
         description: photoData.description,
         tags: photoData.tags,
@@ -516,14 +513,14 @@ async function main() {
           type: "REMIX_CREATED",
           title: "Seu foto foi remixada!",
           message: "João Santos criou um remix de 'Entardecer na Praça dos Girassóis'",
-          data: JSON.stringify({ photoId: "photo-palmas-1", remixId: "remix-1" }),
+          data: JSON.stringify({ photoId: basePhotos[0]?.id }),
         },
         {
           userId: users[1].id,
           type: "GOLD_STANDARD",
           title: "Padrão Ouro! 🏆",
           message: "Sua foto 'Grafite no Plano Diretor Norte' foi destacada como Padrão Ouro",
-          data: JSON.stringify({ photoId: "photo-palmas-3" }),
+          data: JSON.stringify({ photoId: basePhotos[2]?.id }),
         },
         {
           userId: users[2].id,
