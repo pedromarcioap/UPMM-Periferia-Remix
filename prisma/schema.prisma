@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -24,7 +24,7 @@ enum NotificationType {
 }
 
 model User {
-  id             String        @id @default(cuid())
+  id             String        @id @default(uuid()) @db.Uuid
   email          String        @unique
   name           String?
   username       String?       @unique
@@ -45,16 +45,18 @@ model User {
   badges         UserBadge[]
   notifications  Notification[]
   battleVotes    BattleVote[]
+  accounts       Account[]
+  sessions       Session[]
 }
 
 model Photo {
-  id              String         @id @default(cuid())
+  id              String         @id @default(uuid()) @db.Uuid
   title           String
   description     String?
   imageUrl        String
   thumbnailUrl    String?
   tags            String
-  authorId        String
+  authorId        String         @db.Uuid
   vibeCount       Int            @default(0)
   commentCount    Int            @default(0)
   remixCount      Int            @default(0)
@@ -62,15 +64,13 @@ model Photo {
   communityGold   Boolean        @default(false)
   isSynced        Boolean        @default(false)
   syncedAt        DateTime?
-  // Geotagging
   latitude        Float?
   longitude       Float?
-  location        String?        // Nome do local ex: "Praça dos Girassóis"
-  neighborhood    String?        // Bairro/Quebrada ex: "Plano Diretor Norte"
+  location        String?
+  neighborhood    String?
   city            String?        @default("Palmas")
   state           String?        @default("Tocantins")
   country         String?        @default("Brasil")
-  // Battle stats
   battleWins      Int            @default(0)
   battleLosses    Int            @default(0)
   createdAt       DateTime       @default(now())
@@ -84,12 +84,12 @@ model Photo {
 }
 
 model Remix {
-  id              String     @id @default(cuid())
+  id              String     @id @default(uuid()) @db.Uuid
   title           String?
   imageUrl        String
-  originalPhotoId String
-  creatorId       String
-  parentRemixId   String?    // Para rastrear a cadeia de remixes
+  originalPhotoId String     @db.Uuid
+  creatorId       String     @db.Uuid
+  parentRemixId   String?    @db.Uuid
   vibeCount       Int        @default(0)
   commentCount    Int        @default(0)
   createdAt       DateTime   @default(now())
@@ -101,11 +101,11 @@ model Remix {
 }
 
 model Comment {
-  id        String   @id @default(cuid())
+  id        String   @id @default(uuid()) @db.Uuid
   content   String
-  userId    String
-  photoId   String?
-  remixId   String?
+  userId    String   @db.Uuid
+  photoId   String?  @db.Uuid
+  remixId   String?  @db.Uuid
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -114,10 +114,10 @@ model Comment {
 }
 
 model Like {
-  id        String   @id @default(cuid())
-  userId    String
-  photoId   String?
-  remixId   String?
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @db.Uuid
+  photoId   String?  @db.Uuid
+  remixId   String?  @db.Uuid
   createdAt DateTime @default(now())
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   photo     Photo?   @relation(fields: [photoId], references: [id], onDelete: Cascade)
@@ -125,7 +125,7 @@ model Like {
 }
 
 model Badge {
-  id          String      @id @default(cuid())
+  id          String      @id @default(uuid()) @db.Uuid
   name        String      @unique
   description String
   icon        String
@@ -135,9 +135,9 @@ model Badge {
 }
 
 model UserBadge {
-  id       String   @id @default(cuid())
-  userId   String
-  badgeId  String
+  id       String   @id @default(uuid()) @db.Uuid
+  userId   String   @db.Uuid
+  badgeId  String   @db.Uuid
   earnedAt DateTime @default(now())
   user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   badge    Badge    @relation(fields: [badgeId], references: [id])
@@ -146,36 +146,64 @@ model UserBadge {
 }
 
 model Notification {
-  id          String           @id @default(cuid())
-  userId      String
+  id          String           @id @default(uuid()) @db.Uuid
+  userId      String           @db.Uuid
   type        NotificationType
   title       String
   message     String
-  data        String?          // JSON com dados adicionais
+  data        String?
   isRead      Boolean          @default(false)
   createdAt   DateTime         @default(now())
   user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model BattleVote {
-  id          String   @id @default(cuid())
-  userId      String
-  photo1Id    String
-  photo2Id    String
-  winnerId    String
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @db.Uuid
+  photo1Id    String   @db.Uuid
+  photo2Id    String   @db.Uuid
+  winnerId    String   @db.Uuid
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   photo1      Photo    @relation("Photo1Votes", fields: [photo1Id], references: [id], onDelete: Cascade)
   photo2      Photo    @relation("Photo2Votes", fields: [photo2Id], references: [id], onDelete: Cascade)
-  
+
   @@unique([userId, photo1Id, photo2Id])
 }
 
+model Account {
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
 model Session {
-  id           String   @id @default(cuid())
+  id           String   @id @default(uuid()) @db.Uuid
   sessionToken String   @unique
-  userId       String
+  userId       String   @db.Uuid
   expires      DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }
