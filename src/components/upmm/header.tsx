@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useSession, signOut } from "next-auth/react";
+import { signIn } from "next-auth/react";
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,7 +29,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { NotificationBadge } from "./notification-badge";
 
 export function Header() {
-  const { data: session } = useSession();
+  const { data: session, update } = useSession();
   const { user, setUser, setActiveTab, activeTab } = useAppStore();
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [authTab, setAuthTab] = useState<"login" | "register">("login");
@@ -40,31 +41,68 @@ export function Header() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  const handleAuth = async (isRegister: boolean) => {
+  const handleLogin = async () => {
     setLoading(true);
     setError("");
     
     try {
-      const res = await fetch("/api/auth/callback/credentials", {
+      const result = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        // Success - reload to get updated session
+        setShowAuthModal(false);
+        window.location.reload();
+      }
+    } catch (err: any) {
+      setError(err.message || "Erro ao fazer login");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRegister = async () => {
+    setLoading(true);
+    setError("");
+    
+    try {
+      // First, register the user
+      const registerRes = await fetch("/api/auth/register", {
         method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: formData.name,
           email: formData.email,
           password: formData.password,
-          name: formData.name,
-          isRegister: isRegister ? "true" : "false",
-          redirect: "false",
         }),
       });
 
-      if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || "Erro na autenticação");
+      const registerData = await registerRes.json();
+
+      if (!registerRes.ok) {
+        throw new Error(registerData.error || "Erro ao criar conta");
       }
 
-      window.location.reload();
+      // Then sign in
+      const result = await signIn("credentials", {
+        email: formData.email,
+        password: formData.password,
+        redirect: false,
+      });
+
+      if (result?.error) {
+        setError(result.error);
+      } else {
+        setShowAuthModal(false);
+        window.location.reload();
+      }
     } catch (err: any) {
-      setError(err.message || "Erro na autenticação");
+      setError(err.message || "Erro ao criar conta");
     } finally {
       setLoading(false);
     }
@@ -264,7 +302,7 @@ export function Header() {
               </div>
               {error && <p className="text-red-500 text-sm text-center">{error}</p>}
               <Button 
-                onClick={() => handleAuth(false)}
+                onClick={handleLogin}
                 disabled={loading || !formData.email || !formData.password}
                 className="btn-upmm w-full"
               >
@@ -298,7 +336,7 @@ export function Header() {
               </div>
               {error && <p className="text-red-500 text-sm text-center">{error}</p>}
               <Button 
-                onClick={() => handleAuth(true)}
+                onClick={handleRegister}
                 disabled={loading || !formData.email || !formData.password || !formData.name}
                 className="btn-upmm w-full"
               >
