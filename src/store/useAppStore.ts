@@ -21,8 +21,21 @@ export interface Photo {
   tags: string;
   vibeCount: number;
   commentCount: number;
+  remixCount?: number;
   isGoldStandard: boolean;
   isSynced: boolean;
+  communityGold?: boolean;
+  // Geotagging - Palmas-TO
+  latitude?: number | null;
+  longitude?: number | null;
+  location?: string | null;
+  neighborhood?: string | null;
+  city?: string | null;
+  state?: string | null;
+  country?: string | null;
+  // Battle stats
+  battleWins?: number;
+  battleLosses?: number;
   createdAt: string;
   author: {
     id: string;
@@ -87,7 +100,7 @@ interface AppState {
   remixes: Remix[];
   currentPhoto: Photo | null;
   currentRemix: Remix | null;
-  activeTab: "feed" | "upload" | "editor" | "profile" | "admin";
+  activeTab: "feed" | "upload" | "editor" | "profile" | "admin" | "map" | "battle";
   feedFilter: "all" | "photos" | "remixes";
   sortBy: "recent" | "popular";
   selectedTag: string | null;

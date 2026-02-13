@@ -19,11 +19,13 @@ import {
   LogIn, 
   LogOut, 
   Upload, 
-  Settings,
   Sparkles,
-  Shield
+  Shield,
+  MapPin,
+  Flame
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import { NotificationBadge } from "./notification-badge";
 
 export function Header() {
   const { data: session } = useSession();
@@ -112,6 +114,18 @@ export function Header() {
                 icon={<Upload className="w-4 h-4" />}
                 label="Upload"
               />
+              <NavButton 
+                active={activeTab === "map"} 
+                onClick={() => setActiveTab("map")}
+                icon={<MapPin className="w-4 h-4" />}
+                label="Mapa"
+              />
+              <NavButton 
+                active={activeTab === "battle"} 
+                onClick={() => setActiveTab("battle")}
+                icon={<Flame className="w-4 h-4" />}
+                label="Batalha"
+              />
               {session?.user?.role === "ADMIN" && (
                 <NavButton 
                   active={activeTab === "admin"} 
@@ -126,6 +140,8 @@ export function Header() {
             <div className="flex items-center gap-3">
               {session ? (
                 <>
+                  <NotificationBadge />
+                  
                   <motion.button
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.95 }}
@@ -182,6 +198,20 @@ export function Header() {
               onClick={() => setActiveTab("upload")}
               icon={<Upload className="w-4 h-4" />}
               label="Upload"
+              mobile
+            />
+            <NavButton 
+              active={activeTab === "map"} 
+              onClick={() => setActiveTab("map")}
+              icon={<MapPin className="w-4 h-4" />}
+              label="Mapa"
+              mobile
+            />
+            <NavButton 
+              active={activeTab === "battle"} 
+              onClick={() => setActiveTab("battle")}
+              icon={<Flame className="w-4 h-4" />}
+              label="Batalha"
               mobile
             />
             {session?.user?.role === "ADMIN" && (

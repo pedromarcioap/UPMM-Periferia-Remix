@@ -2,20 +2,22 @@
 
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Heart, MessageCircle, Sparkles, Globe, Eye, LogIn } from "lucide-react";
+import { Heart, MessageCircle, Sparkles, Globe, Eye, MapPin, Trophy, GitBranch, LogIn } from "lucide-react";
 import { Photo } from "@/store/useAppStore";
 import { useSession } from "next-auth/react";
 import { formatDistanceToNow } from "date-fns";
 import { ptBR } from "date-fns/locale";
+import { ShareButton } from "./share-button";
 
 interface PhotoCardProps {
   photo: Photo;
   onRemix: () => void;
   onLike: () => void;
   onView: () => void;
+  onGenealogy?: () => void;
 }
 
-export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
+export function PhotoCard({ photo, onRemix, onLike, onView, onGenealogy }: PhotoCardProps) {
   const { data: session, status } = useSession();
   const isLoggedIn = status === "authenticated" && session?.user?.id;
   const [liked, setLiked] = useState(false);
@@ -61,6 +63,11 @@ export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
     onRemix();
   };
 
+  const handleGenealogyClick = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    onGenealogy?.();
+  };
+
   const tags = photo.tags.split(",").filter(Boolean);
 
   return (
@@ -89,10 +96,17 @@ export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         
         {/* Badges */}
-        <div className="absolute top-3 left-3 flex gap-2">
+        <div className="absolute top-3 left-3 flex flex-wrap gap-2">
           {photo.isGoldStandard && (
-            <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-[#FFB800] text-[#2D2A26]">
+            <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-[#FFB800] text-[#2D2A26] flex items-center gap-1">
+              <Trophy className="w-3 h-3" />
               Padrão Ouro
+            </span>
+          )}
+          {(photo as any).communityGold && (
+            <span className="px-2 py-1 rounded-full text-[10px] font-bold uppercase bg-gradient-to-r from-[#FFB800] to-[#FFD700] text-[#2D2A26] flex items-center gap-1">
+              <Trophy className="w-3 h-3" />
+              Ouro Comunitário
             </span>
           )}
           {photo.isSynced && (
@@ -102,6 +116,16 @@ export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
             </span>
           )}
         </div>
+
+        {/* Location Badge */}
+        {(photo as any).neighborhood && (
+          <div className="absolute top-3 right-3">
+            <span className="px-2 py-1 rounded-full text-[10px] font-medium bg-black/50 text-white backdrop-blur-sm flex items-center gap-1">
+              <MapPin className="w-3 h-3" />
+              {(photo as any).neighborhood}
+            </span>
+          </div>
+        )}
 
         {/* Remix Button */}
         <motion.button
@@ -183,7 +207,7 @@ export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-4 pt-2">
+        <div className="flex items-center gap-2 pt-2">
           <motion.button
             whileTap={{ scale: 0.9 }}
             onClick={(e) => {
@@ -205,8 +229,22 @@ export function PhotoCard({ photo, onRemix, onLike, onView }: PhotoCardProps) {
             <span className="text-xs font-medium">{photo.commentCount}</span>
           </div>
 
-          <div className="flex items-center gap-1.5 text-gray-400 ml-auto">
-            <Eye className="w-4 h-4" />
+          {/* Genealogy Button */}
+          <motion.button
+            whileTap={{ scale: 0.9 }}
+            onClick={handleGenealogyClick}
+            className="flex items-center gap-1.5 text-gray-400 hover:text-[#FFB800] transition-colors ml-2"
+          >
+            <GitBranch className="w-4 h-4" />
+          </motion.button>
+
+          {/* Share Button */}
+          <div onClick={(e) => e.stopPropagation()}>
+            <ShareButton
+              photoId={photo.id}
+              photoTitle={photo.title}
+              imageUrl={photo.imageUrl}
+            />
           </div>
         </div>
       </div>

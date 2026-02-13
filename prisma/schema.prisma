@@ -15,47 +15,72 @@ enum Role {
   ADMIN
 }
 
+enum NotificationType {
+  REMIX_CREATED
+  GOLD_STANDARD
+  BATTLE_WIN
+  NEW_FOLLOWER
+  BADGE_EARNED
+}
+
 model User {
-  id             String      @id @default(cuid())
-  email          String      @unique
+  id             String        @id @default(cuid())
+  email          String        @unique
   name           String?
-  username       String?     @unique
+  username       String?       @unique
   bio            String?
   avatar         String?
-  googleId       String?     @unique
+  googleId       String?       @unique
   password       String?
-  vibePoints     Int         @default(0)
-  responsaPoints Int         @default(0)
-  level          Int         @default(1)
-  role           Role        @default(USER)
-  createdAt      DateTime    @default(now())
-  updatedAt      DateTime    @updatedAt
+  vibePoints     Int           @default(0)
+  responsaPoints Int           @default(0)
+  level          Int           @default(1)
+  role           Role          @default(USER)
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
   photos         Photo[]
   remixes        Remix[]
   comments       Comment[]
   likes          Like[]
   badges         UserBadge[]
+  notifications  Notification[]
+  battleVotes    BattleVote[]
 }
 
 model Photo {
-  id             String     @id @default(cuid())
-  title          String
-  description    String?
-  imageUrl       String
-  thumbnailUrl   String?
-  tags           String
-  authorId       String
-  vibeCount      Int        @default(0)
-  commentCount   Int        @default(0)
-  isGoldStandard Boolean    @default(false)
-  isSynced       Boolean    @default(false)
-  syncedAt       DateTime?
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
-  author         User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
-  remixes        Remix[]
-  comments       Comment[]
-  likes          Like[]
+  id              String         @id @default(cuid())
+  title           String
+  description     String?
+  imageUrl        String
+  thumbnailUrl    String?
+  tags            String
+  authorId        String
+  vibeCount       Int            @default(0)
+  commentCount    Int            @default(0)
+  remixCount      Int            @default(0)
+  isGoldStandard  Boolean        @default(false)
+  communityGold   Boolean        @default(false)
+  isSynced        Boolean        @default(false)
+  syncedAt        DateTime?
+  // Geotagging
+  latitude        Float?
+  longitude       Float?
+  location        String?        // Nome do local ex: "Praça dos Girassóis"
+  neighborhood    String?        // Bairro/Quebrada ex: "Plano Diretor Norte"
+  city            String?        @default("Palmas")
+  state           String?        @default("Tocantins")
+  country         String?        @default("Brasil")
+  // Battle stats
+  battleWins      Int            @default(0)
+  battleLosses    Int            @default(0)
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  author          User           @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  remixes         Remix[]
+  comments        Comment[]
+  likes           Like[]
+  battleVotesAsPhoto1 BattleVote[] @relation("Photo1Votes")
+  battleVotesAsPhoto2 BattleVote[] @relation("Photo2Votes")
 }
 
 model Remix {
@@ -64,6 +89,7 @@ model Remix {
   imageUrl        String
   originalPhotoId String
   creatorId       String
+  parentRemixId   String?    // Para rastrear a cadeia de remixes
   vibeCount       Int        @default(0)
   commentCount    Int        @default(0)
   createdAt       DateTime   @default(now())
@@ -117,6 +143,32 @@ model UserBadge {
   badge    Badge    @relation(fields: [badgeId], references: [id])
 
   @@unique([userId, badgeId])
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  type        NotificationType
+  title       String
+  message     String
+  data        String?          // JSON com dados adicionais
+  isRead      Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model BattleVote {
+  id          String   @id @default(cuid())
+  userId      String
+  photo1Id    String
+  photo2Id    String
+  winnerId    String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photo1      Photo    @relation("Photo1Votes", fields: [photo1Id], references: [id], onDelete: Cascade)
+  photo2      Photo    @relation("Photo2Votes", fields: [photo2Id], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, photo1Id, photo2Id])
 }
 
 model Session {

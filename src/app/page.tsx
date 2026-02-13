@@ -10,6 +10,9 @@ import { UserProfile } from "@/components/upmm/user-profile";
 import { AdminDashboard } from "@/components/upmm/admin-dashboard";
 import { Header } from "@/components/upmm/header";
 import { Footer } from "@/components/upmm/footer";
+import { MapView } from "@/components/upmm/map-view";
+import { BattleMode } from "@/components/upmm/battle-mode";
+import { RemixGenealogy } from "@/components/upmm/remix-genealogy";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -20,7 +23,9 @@ import {
   Search,
   Loader2,
   RefreshCw,
-  LogIn
+  LogIn,
+  MapPin,
+  Flame
 } from "lucide-react";
 import { useAppStore, Photo, Remix } from "@/store/useAppStore";
 
@@ -33,6 +38,22 @@ const TAGS = [
   "Cores",
   "Texturas",
   "NaturezaUrbana",
+];
+
+// Bairros de Palmas-TO para filtro
+const NEIGHBORHOODS = [
+  "Todos",
+  "Plano Diretor Norte",
+  "Plano Diretor Sul",
+  "Graciosa",
+  "Taquaralto",
+  "Taquarussu",
+  "Jardim Aureny I",
+  "Jardim Aureny II",
+  "Jardim Aureny III",
+  "Santa Fé",
+  "Arse 11",
+  "Arse 21",
 ];
 
 export default function HomePage() {
@@ -57,8 +78,13 @@ export default function HomePage() {
   const [showUpload, setShowUpload] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [showAdmin, setShowAdmin] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [showBattle, setShowBattle] = useState(false);
+  const [showGenealogy, setShowGenealogy] = useState(false);
+  const [selectedPhotoForGenealogy, setSelectedPhotoForGenealogy] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState<string | null>(null);
 
   // Fetch photos
   const fetchPhotos = useCallback(async () => {
@@ -92,6 +118,10 @@ export default function HomePage() {
       setShowProfile(true);
     } else if (activeTab === "admin") {
       setShowAdmin(true);
+    } else if (activeTab === "map") {
+      setShowMap(true);
+    } else if (activeTab === "battle") {
+      setShowBattle(true);
     }
   }, [activeTab]);
 
@@ -116,6 +146,22 @@ export default function HomePage() {
       });
       
       if (res.ok) {
+        // Create notification for the original photo author
+        const remixData = await res.json();
+        
+        await fetch("/api/notifications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: "CREATE_NOTIFICATION",
+            userId: editingPhoto.author.id,
+            notificationType: "REMIX_CREATED",
+            title: "Sua foto foi remixada!",
+            message: `${session.user.name} criou um remix de "${editingPhoto.title}"`,
+            data: { photoId: editingPhoto.id, remixId: remixData.id },
+          }),
+        });
+
         setShowEditor(false);
         setEditingPhoto(null);
         fetchPhotos();
@@ -139,15 +185,32 @@ export default function HomePage() {
     setShowEditor(true);
   };
 
+  const handleGenealogyClick = (photoId: string) => {
+    setSelectedPhotoForGenealogy(photoId);
+    setShowGenealogy(true);
+  };
+
+  // Filter photos by neighborhood
   const filteredPhotos = photos.filter(photo => {
-    if (!searchQuery) return true;
-    const query = searchQuery.toLowerCase();
-    return (
-      photo.title.toLowerCase().includes(query) ||
-      photo.description?.toLowerCase().includes(query) ||
-      photo.tags.toLowerCase().includes(query) ||
-      photo.author.name?.toLowerCase().includes(query)
-    );
+    // Search filter
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const matchesSearch = (
+        photo.title.toLowerCase().includes(query) ||
+        photo.description?.toLowerCase().includes(query) ||
+        photo.tags.toLowerCase().includes(query) ||
+        photo.author.name?.toLowerCase().includes(query)
+      );
+      if (!matchesSearch) return false;
+    }
+
+    // Neighborhood filter
+    if (selectedNeighborhood && selectedNeighborhood !== "Todos") {
+      const photoNeighborhood = (photo as any).neighborhood;
+      if (photoNeighborhood !== selectedNeighborhood) return false;
+    }
+
+    return true;
   });
 
   return (
@@ -172,10 +235,10 @@ export default function HomePage() {
             <h1 className="text-4xl md:text-6xl font-black uppercase tracking-tighter mb-4">
               <span className="text-gradient-upmm">UPMM</span>
               <br />
-              <span className="text-2xl md:text-3xl font-bold">Galeria Comunitária</span>
+              <span className="text-2xl md:text-3xl font-bold">Palmas, Tocantins</span>
             </h1>
             <p className="text-lg md:text-xl text-gray-300 max-w-2xl mx-auto mb-8">
-              Explore a estética visual das periferias brasileiras. Faça upload, remixe e compartilhe.
+              Explore a estética visual das quebradas de Palmas. Faça upload, remixe e compartilhe a arte urbana.
             </p>
 
             <div className="flex flex-wrap justify-center gap-4">
@@ -194,17 +257,20 @@ export default function HomePage() {
                 Upload
               </Button>
               <Button
+                onClick={() => setShowMap(true)}
                 variant="outline"
-                onClick={() => {
-                  if (!isLoggedIn) {
-                    setShowLoginPrompt(true);
-                    setTimeout(() => setShowLoginPrompt(false), 3000);
-                  }
-                }}
                 className="btn-upmm-outline text-lg px-8 border-white text-white hover:bg-white hover:text-[#2D2A26]"
               >
-                <Sparkles className="w-5 h-5 mr-2" />
-                Remixar
+                <MapPin className="w-5 h-5 mr-2" />
+                Mapa da Visão
+              </Button>
+              <Button
+                onClick={() => setShowBattle(true)}
+                variant="outline"
+                className="btn-upmm-outline text-lg px-8 border-[#FFB800] text-[#FFB800] hover:bg-[#FFB800] hover:text-[#2D2A26]"
+              >
+                <Flame className="w-5 h-5 mr-2" />
+                Batalha de Vibes
               </Button>
             </div>
 
@@ -241,9 +307,9 @@ export default function HomePage() {
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 py-8">
         {/* Filters */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4 mb-8">
+        <div className="flex flex-col gap-4 mb-8">
           {/* Tag Filters */}
-          <div className="flex items-center gap-2 overflow-x-auto pb-2 w-full md:w-auto">
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 w-full">
             <Filter className="w-4 h-4 text-gray-400 flex-shrink-0" />
             {TAGS.map((tag) => (
               <Button
@@ -262,13 +328,33 @@ export default function HomePage() {
             ))}
           </div>
 
+          {/* Neighborhood Filter - Palmas-TO */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 w-full">
+            <MapPin className="w-4 h-4 text-[#FFB800] flex-shrink-0" />
+            {NEIGHBORHOODS.map((bairro) => (
+              <Button
+                key={bairro}
+                variant={selectedNeighborhood === bairro ? "default" : "outline"}
+                size="sm"
+                onClick={() => setSelectedNeighborhood(bairro === "Todos" ? null : bairro)}
+                className={`rounded-xl whitespace-nowrap text-xs ${
+                  selectedNeighborhood === bairro 
+                    ? "bg-[#2D2A26] text-white hover:bg-[#3D3A36]" 
+                    : "border-[#FFB800]/30"
+                }`}
+              >
+                {bairro}
+              </Button>
+            ))}
+          </div>
+
           {/* Sort & Search */}
           <div className="flex items-center gap-3 w-full md:w-auto">
             <div className="relative flex-1 md:w-64">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
               <input
                 type="text"
-                placeholder="Buscar..."
+                placeholder="Buscar em Palmas..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:border-[#FFB800] focus:ring-2 focus:ring-[#FFB800]/20 outline-none text-sm"
@@ -335,6 +421,7 @@ export default function HomePage() {
                     onRemix={() => handleRemixClick(photo)}
                     onLike={() => {}}
                     onView={() => {}}
+                    onGenealogy={() => handleGenealogyClick(photo.id)}
                   />
                 </motion.div>
               ))}
@@ -392,6 +479,31 @@ export default function HomePage() {
         onOpenChange={(open) => {
           setShowAdmin(open);
           if (!open) setActiveTab("feed");
+        }}
+      />
+
+      <MapView
+        open={showMap}
+        onOpenChange={(open) => {
+          setShowMap(open);
+          if (!open) setActiveTab("feed");
+        }}
+      />
+
+      <BattleMode
+        open={showBattle}
+        onOpenChange={(open) => {
+          setShowBattle(open);
+          if (!open) setActiveTab("feed");
+        }}
+      />
+
+      <RemixGenealogy
+        photoId={selectedPhotoForGenealogy || undefined}
+        open={showGenealogy}
+        onOpenChange={(open) => {
+          setShowGenealogy(open);
+          if (!open) setSelectedPhotoForGenealogy(null);
         }}
       />
     </div>

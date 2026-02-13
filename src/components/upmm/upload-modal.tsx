@@ -24,7 +24,8 @@ import {
   Globe,
   Folder,
   ExternalLink,
-  LogIn
+  LogIn,
+  MapPin
 } from "lucide-react";
 
 const AVAILABLE_TAGS = [
@@ -38,6 +39,25 @@ const AVAILABLE_TAGS = [
   "Cultura",
   "Música",
   "Esporte",
+];
+
+// Bairros de Palmas-TO
+const PALMAS_NEIGHBORHOODS = [
+  { name: "Plano Diretor Norte", lat: -10.2123, lng: -48.3156 },
+  { name: "Plano Diretor Sul", lat: -10.2678, lng: -48.3389 },
+  { name: "Graciosa", lat: -10.2456, lng: -48.3123 },
+  { name: "Taquaralto", lat: -10.3012, lng: -48.2890 },
+  { name: "Taquarussu", lat: -10.2890, lng: -48.3012 },
+  { name: "Jardim Aureny I", lat: -10.3456, lng: -48.2678 },
+  { name: "Jardim Aureny II", lat: -10.3567, lng: -48.2567 },
+  { name: "Jardim Aureny III", lat: -10.3678, lng: -48.2456 },
+  { name: "Santa Fé", lat: -10.2789, lng: -48.3456 },
+  { name: "Ponta Negra", lat: -10.3123, lng: -48.3567 },
+  { name: "Arse 11", lat: -10.2012, lng: -48.3234 },
+  { name: "Arse 21", lat: -10.2456, lng: -48.3289 },
+  { name: "Lago Sul", lat: -10.2678, lng: -48.3567 },
+  { name: "Beira Lago", lat: -10.2345, lng: -48.3012 },
+  { name: "Centro Administrativo", lat: -10.1862, lng: -48.3347 },
 ];
 
 // Quick search tags for periphery-related content
@@ -86,6 +106,10 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Geotagging - Palmas-TO
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>("");
+  const [customLocation, setCustomLocation] = useState<string>("");
 
   // Pexels search state
   const [searchQuery, setSearchQuery] = useState("");
@@ -204,6 +228,9 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
     setStep("uploading");
     setError("");
 
+    // Get neighborhood coordinates
+    const neighborhoodData = PALMAS_NEIGHBORHOODS.find(n => n.name === selectedNeighborhood);
+
     try {
       const res = await fetch("/api/photos", {
         method: "POST",
@@ -215,6 +242,15 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
           thumbnailUrl: image,
           tags: selectedTags,
           authorId: session.user.id,
+          // Geotagging
+          latitude: neighborhoodData?.lat,
+          longitude: neighborhoodData?.lng,
+          location: customLocation || neighborhoodData?.name,
+          neighborhood: selectedNeighborhood,
+          city: "Palmas",
+          state: "Tocantins",
+          country: "Brasil",
+          // Source attribution
           source: selectedPexelsPhoto ? {
             type: "pexels",
             photographer: selectedPexelsPhoto.photographer,
@@ -248,6 +284,8 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
     setSearchResults([]);
     setSelectedPexelsPhoto(null);
     setCurrentPage(1);
+    setSelectedNeighborhood("");
+    setCustomLocation("");
     onOpenChange(false);
   };
 
@@ -619,6 +657,58 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
                   <p className="text-xs text-gray-400 mt-2">
                     {selectedTags.length}/5 tags selecionadas
                   </p>
+                </div>
+
+                {/* Geotagging - Palmas-TO */}
+                <div className="border-t border-gray-100 pt-4">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3 block flex items-center gap-2">
+                    <MapPin className="w-4 h-4 text-[#FFB800]" />
+                    Localização em Palmas
+                  </label>
+                  
+                  <div className="space-y-3">
+                    <div>
+                      <select
+                        value={selectedNeighborhood}
+                        onChange={(e) => setSelectedNeighborhood(e.target.value)}
+                        className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#FFB800] focus:ring-0 outline-none text-sm"
+                        disabled={!isLoggedIn}
+                      >
+                        <option value="">Selecione a quebrada (bairro)</option>
+                        {PALMAS_NEIGHBORHOODS.map((bairro) => (
+                          <option key={bairro.name} value={bairro.name}>
+                            {bairro.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {selectedNeighborhood && (
+                      <div>
+                        <Input
+                          value={customLocation}
+                          onChange={(e) => setCustomLocation(e.target.value)}
+                          placeholder="Nome do local específico (ex: Praça dos Girassóis)"
+                          className="input-upmm"
+                          disabled={!isLoggedIn}
+                        />
+                      </div>
+                    )}
+                    
+                    {selectedNeighborhood && (
+                      <div className="bg-[#FFB800]/10 rounded-xl p-3 flex items-start gap-2">
+                        <MapPin className="w-4 h-4 text-[#FFB800] flex-shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs font-medium text-[#2D2A26]">
+                            {selectedNeighborhood}
+                          </p>
+                          <p className="text-[10px] text-gray-500">
+                            Palmas, Tocantins
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 

@@ -10,6 +10,7 @@ export async function GET(request: NextRequest) {
     const sort = searchParams.get("sort") || "recent";
     const tag = searchParams.get("tag");
     const userId = searchParams.get("userId");
+    const neighborhood = searchParams.get("neighborhood");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
 
@@ -17,6 +18,7 @@ export async function GET(request: NextRequest) {
       where: {
         ...(tag && { tags: { contains: tag } }),
         ...(userId && { authorId: userId }),
+        ...(neighborhood && neighborhood !== "Todos" && { neighborhood }),
       },
       include: {
         author: {
@@ -75,7 +77,23 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { title, description, imageUrl, thumbnailUrl, tags, authorId, source } = body;
+    const { 
+      title, 
+      description, 
+      imageUrl, 
+      thumbnailUrl, 
+      tags, 
+      authorId, 
+      source,
+      // Geotagging - Palmas-TO
+      latitude,
+      longitude,
+      location,
+      neighborhood,
+      city = "Palmas",
+      state = "Tocantins",
+      country = "Brasil",
+    } = body;
 
     // Validate that the authenticated user matches the authorId
     if (authorId !== session.user.id) {
@@ -95,9 +113,17 @@ export async function POST(request: NextRequest) {
         description,
         imageUrl,
         thumbnailUrl: thumbnailUrl || imageUrl,
-        tags: tags.join(","),
+        tags: Array.isArray(tags) ? tags.join(",") : tags,
         authorId,
-        // Store source attribution if provided
+        // Geotagging
+        latitude: latitude ? parseFloat(latitude) : null,
+        longitude: longitude ? parseFloat(longitude) : null,
+        location,
+        neighborhood,
+        city,
+        state,
+        country,
+        // Source attribution
         ...(source && { 
           description: description 
             ? `${description}\n\nFonte: ${source.type} - Foto por ${source.photographer}`
@@ -116,6 +142,27 @@ export async function POST(request: NextRequest) {
     if (userPhotos === 1) {
       const badge = await prisma.badge.findFirst({
         where: { name: "Primeiro Click" },
+      });
+      if (badge) {
+        await prisma.userBadge.upsert({
+          where: { userId_badgeId: { userId: authorId, badgeId: badge.id } },
+          update: {},
+          create: { userId: authorId, badgeId: badge.id },
+        });
+      }
+    }
+
+    // Check for geotagging badge (Mapa da Quebrada)
+    const geotaggedPhotos = await prisma.photo.count({ 
+      where: { 
+        authorId,
+        latitude: { not: null },
+        longitude: { not: null },
+      } 
+    });
+    if (geotaggedPhotos >= 5) {
+      const badge = await prisma.badge.findFirst({
+        where: { name: "Mapa da Quebrada" },
       });
       if (badge) {
         await prisma.userBadge.upsert({
