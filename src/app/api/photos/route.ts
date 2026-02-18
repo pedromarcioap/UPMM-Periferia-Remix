@@ -14,11 +14,17 @@ export async function GET(request: NextRequest) {
     const offset = parseInt(searchParams.get("offset") || "0");
     const withLocation = searchParams.get("withLocation") === "true";
 
-    // Build where clause
+    console.log("[PHOTOS API] Request params:", { type, sort, tag, userId, search, limit, offset, withLocation });
+
+    // Build where clause for PostgreSQL
     const where: any = {};
     
+    // PostgreSQL case-insensitive search using mode
     if (tag) {
-      where.tags = { contains: tag };
+      where.tags = { 
+        contains: tag,
+        mode: 'insensitive' as const
+      };
     }
     
     if (userId) {
@@ -26,22 +32,21 @@ export async function GET(request: NextRequest) {
     }
     
     if (search) {
-      const searchTerm = search.toLowerCase();
       where.OR = [
-        { title: { contains: searchTerm } },
-        { description: { contains: searchTerm } },
-        { tags: { contains: searchTerm } },
+        { title: { contains: search, mode: 'insensitive' as const } },
+        { description: { contains: search, mode: 'insensitive' as const } },
+        { tags: { contains: search, mode: 'insensitive' as const } },
       ];
     }
     
     if (withLocation) {
-      where.NOT = {
-        OR: [
-          { latitude: null },
-          { longitude: null },
-        ],
-      };
+      where.AND = [
+        { latitude: { not: null } },
+        { longitude: { not: null } },
+      ];
     }
+
+    console.log("[PHOTOS API] Where clause:", JSON.stringify(where, null, 2));
 
     const photos = await prisma.photo.findMany({
       where,
@@ -58,34 +63,53 @@ export async function GET(request: NextRequest) {
       skip: offset,
     });
 
-    const remixes = type === "all" || type === "remixes" 
-      ? await prisma.remix.findMany({
-          where: userId ? { creatorId: userId } : undefined,
-          include: {
-            creator: {
-              select: { id: true, name: true, username: true, avatar: true, level: true },
-            },
-            originalPhoto: {
-              include: {
-                author: {
-                  select: { id: true, name: true, username: true },
-                },
+    console.log("[PHOTOS API] Found photos:", photos.length);
+
+    let remixes: any[] = [];
+    if (type === "all" || type === "remixes") {
+      remixes = await prisma.remix.findMany({
+        where: userId ? { creatorId: userId } : undefined,
+        include: {
+          creator: {
+            select: { id: true, name: true, username: true, avatar: true, level: true },
+          },
+          originalPhoto: {
+            include: {
+              author: {
+                select: { id: true, name: true, username: true },
               },
             },
-            _count: { select: { likes: true, comments: true } },
           },
-          orderBy: sort === "popular" 
-            ? { vibeCount: "desc" }
-            : { createdAt: "desc" },
-          take: limit,
-          skip: offset,
-        })
-      : [];
+          _count: { select: { likes: true, comments: true } },
+        },
+        orderBy: sort === "popular" 
+          ? { vibeCount: "desc" }
+          : { createdAt: "desc" },
+        take: limit,
+        skip: offset,
+      });
+    }
 
     return NextResponse.json({ photos, remixes });
   } catch (error) {
-    console.error("Error fetching photos:", error);
-    return NextResponse.json({ error: "Erro ao buscar fotos" }, { status: 500 });
+    console.error("[PHOTOS API] Error:", error);
+    
+    // Return more detailed error info
+    const errorMessage = error instanceof Error ? error.message : "Unknown error";
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    
+    console.error("[PHOTOS API] Error details:", {
+      message: errorMessage,
+      stack: errorStack,
+    });
+    
+    // Return empty arrays to prevent frontend crashes
+    return NextResponse.json({ 
+      photos: [], 
+      remixes: [], 
+      error: "Erro ao buscar fotos",
+      details: process.env.NODE_ENV === 'development' ? errorMessage : undefined
+    });
   }
 }
 
@@ -145,7 +169,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(photo);
   } catch (error) {
-    console.error("Error creating photo:", error);
-    return NextResponse.json({ error: "Erro ao criar foto" }, { status: 500 });
+    console.error("[PHOTOS API] Error creating photo:", error);
+    return NextResponse.json({ 
+      error: "Erro ao criar foto",
+      details: error instanceof Error ? error.message : undefined
+    }, { status: 500 });
   }
 }

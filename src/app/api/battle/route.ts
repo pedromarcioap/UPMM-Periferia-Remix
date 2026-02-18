@@ -12,51 +12,77 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
     }
 
-    // Get two random photos for battle
-    const photos = await prisma.$queryRaw<{ id: string }[]>`
-      SELECT id FROM Photo 
-      ORDER BY RANDOM() 
-      LIMIT 2
-    `;
+    console.log("[BATTLE API] Starting battle fetch");
 
-    if (photos.length < 2) {
+    // Get photo count first
+    const photoCount = await prisma.photo.count();
+    console.log("[BATTLE API] Photo count:", photoCount);
+    
+    if (photoCount < 2) {
       return NextResponse.json({ 
-        error: "Fotos insuficientes para batalha" 
-      }, { status: 400 });
+        error: "Fotos insuficientes para batalha",
+        photo1: null,
+        photo2: null
+      });
     }
 
-    const [photo1, photo2] = await Promise.all([
-      prisma.photo.findUnique({
-        where: { id: photos[0].id },
-        include: {
-          author: { 
-            select: { id: true, name: true, username: true, avatar: true, level: true } 
-          },
-          _count: { select: { likes: true } },
-        },
-      }),
-      prisma.photo.findUnique({
-        where: { id: photos[1].id },
-        include: {
-          author: { 
-            select: { id: true, name: true, username: true, avatar: true, level: true } 
-          },
-          _count: { select: { likes: true } },
-        },
-      }),
-    ]);
-
-    if (!photo1 || !photo2) {
-      return NextResponse.json({ 
-        error: "Erro ao carregar fotos" 
-      }, { status: 500 });
+    // Get random offset values
+    const skip1 = Math.floor(Math.random() * photoCount);
+    let skip2 = Math.floor(Math.random() * photoCount);
+    
+    // Ensure we get different photos
+    while (skip2 === skip1 && photoCount > 1) {
+      skip2 = Math.floor(Math.random() * photoCount);
     }
 
-    return NextResponse.json({ photo1, photo2 });
+    console.log("[BATTLE API] Skip values:", { skip1, skip2 });
+
+    const [photo1Result] = await prisma.photo.findMany({
+      take: 1,
+      skip: skip1,
+      include: {
+        author: { 
+          select: { id: true, name: true, username: true, avatar: true, level: true } 
+        },
+        _count: { select: { likes: true } },
+      },
+    });
+
+    const [photo2Result] = await prisma.photo.findMany({
+      take: 1,
+      skip: skip2,
+      include: {
+        author: { 
+          select: { id: true, name: true, username: true, avatar: true, level: true } 
+        },
+        _count: { select: { likes: true } },
+      },
+    });
+
+    console.log("[BATTLE API] Photos found:", { 
+      photo1: photo1Result?.id, 
+      photo2: photo2Result?.id 
+    });
+
+    if (!photo1Result || !photo2Result) {
+      return NextResponse.json({ 
+        error: "Erro ao carregar fotos",
+        photo1: null,
+        photo2: null
+      });
+    }
+
+    return NextResponse.json({ photo1: photo1Result, photo2: photo2Result });
   } catch (error) {
-    console.error("Error fetching battle:", error);
+    console.error("[BATTLE API] Error:", error);
+    
     return NextResponse.json(
-      { error: "Erro ao carregar batalha" }, 
+      { 
+        error: "Erro ao carregar batalha", 
+        photo1: null, 
+        photo2: null,
+        details: error instanceof Error ? error.message : undefined
+      }, 
       { status: 500 }
     );
   }
@@ -108,9 +134,12 @@ export async function POST(request: NextRequest) {
       message: "Voto registrado com sucesso!" 
     });
   } catch (error) {
-    console.error("Error voting in battle:", error);
+    console.error("[BATTLE API] Error voting:", error);
     return NextResponse.json(
-      { error: "Erro ao registrar voto" }, 
+      { 
+        error: "Erro ao registrar voto",
+        details: error instanceof Error ? error.message : undefined
+      }, 
       { status: 500 }
     );
   }

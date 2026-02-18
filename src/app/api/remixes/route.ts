@@ -10,11 +10,12 @@ export async function GET(request: NextRequest) {
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
 
+    const where: any = {};
+    if (photoId) where.originalPhotoId = photoId;
+    if (userId) where.creatorId = userId;
+
     const remixes = await prisma.remix.findMany({
-      where: {
-        ...(photoId && { originalPhotoId: photoId }),
-        ...(userId && { creatorId: userId }),
-      },
+      where,
       include: {
         creator: {
           select: { id: true, name: true, username: true, avatar: true, level: true },
@@ -33,10 +34,12 @@ export async function GET(request: NextRequest) {
       skip: offset,
     });
 
-    return NextResponse.json(remixes);
+    // Always return an array for frontend compatibility
+    return NextResponse.json(remixes || []);
   } catch (error) {
     console.error("Error fetching remixes:", error);
-    return NextResponse.json({ error: "Erro ao buscar remixes" }, { status: 500 });
+    // Return empty array instead of error object to prevent .map() crashes
+    return NextResponse.json([]);
   }
 }
 

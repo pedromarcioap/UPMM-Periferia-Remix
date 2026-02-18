@@ -11,7 +11,8 @@ import {
   Dialog, 
   DialogContent, 
   DialogHeader, 
-  DialogTitle 
+  DialogTitle,
+  DialogDescription 
 } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -19,13 +20,11 @@ import {
   Camera, 
   Sparkles, 
   Award, 
-  Settings, 
   Edit2, 
   Save,
-  X,
   Star,
-  TrendingUp,
-  Zap
+  Zap,
+  Loader2
 } from "lucide-react";
 import { Photo, Remix } from "@/store/useAppStore";
 
@@ -61,10 +60,12 @@ export function UserProfile({ open, onOpenChange }: UserProfileProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ name: "", bio: "", username: "" });
   const [loading, setLoading] = useState(false);
+  const [loadingProfile, setLoadingProfile] = useState(true);
   const [activeTab, setActiveTab] = useState("photos");
 
   useEffect(() => {
     if (session?.user?.id && open) {
+      setLoadingProfile(true);
       fetchProfile();
       fetchUserContent();
     }
@@ -73,29 +74,48 @@ export function UserProfile({ open, onOpenChange }: UserProfileProps) {
   const fetchProfile = async () => {
     if (!session?.user?.id) return;
     
-    const res = await fetch(`/api/users?userId=${session.user.id}`);
-    const data = await res.json();
-    setProfile(data);
-    setEditForm({
-      name: data.name || "",
-      bio: data.bio || "",
-      username: data.username || "",
-    });
+    try {
+      const res = await fetch(`/api/users?userId=${session.user.id}`);
+      const data = await res.json();
+      
+      if (!res.ok) {
+        console.error("Error fetching profile:", data.error);
+        return;
+      }
+      
+      setProfile(data);
+      setEditForm({
+        name: data.name || "",
+        bio: data.bio || "",
+        username: data.username || "",
+      });
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+    } finally {
+      setLoadingProfile(false);
+    }
   };
 
   const fetchUserContent = async () => {
     if (!session?.user?.id) return;
     
-    const [photosRes, remixesRes] = await Promise.all([
-      fetch(`/api/photos?userId=${session.user.id}&limit=20`),
-      fetch(`/api/remixes?userId=${session.user.id}&limit=20`),
-    ]);
-    
-    const photosData = await photosRes.json();
-    const remixesData = await remixesRes.json();
-    
-    setPhotos(photosData.photos || []);
-    setRemixes(remixesData || []);
+    try {
+      const [photosRes, remixesRes] = await Promise.all([
+        fetch(`/api/photos?userId=${session.user.id}&limit=20`),
+        fetch(`/api/remixes?userId=${session.user.id}&limit=20`),
+      ]);
+      
+      const photosData = await photosRes.json();
+      const remixesData = await remixesRes.json();
+      
+      // Handle both array and object responses
+      setPhotos(Array.isArray(photosData?.photos) ? photosData.photos : []);
+      setRemixes(Array.isArray(remixesData) ? remixesData : []);
+    } catch (error) {
+      console.error("Error fetching content:", error);
+      setPhotos([]);
+      setRemixes([]);
+    }
   };
 
   const handleSaveProfile = async () => {
@@ -134,7 +154,6 @@ export function UserProfile({ open, onOpenChange }: UserProfileProps) {
   };
 
   const getNextLevel = () => {
-    const points = (profile?.vibePoints || 0) + (profile?.responsaPoints || 0);
     const currentIndex = LEVELS.findIndex(l => l.level === getCurrentLevel().level);
     if (currentIndex < LEVELS.length - 1) {
       return LEVELS[currentIndex + 1];
@@ -154,7 +173,29 @@ export function UserProfile({ open, onOpenChange }: UserProfileProps) {
     return Math.min(100, (progress / needed) * 100);
   };
 
-  if (!profile) return null;
+  if (loadingProfile) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl">
+          <div className="flex items-center justify-center py-12">
+            <Loader2 className="w-8 h-8 text-[#FFB800] animate-spin" />
+          </div>
+        </DialogContent>
+      </Dialog>
+    );
+  }
+
+  if (!profile) {
+    return (
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="sm:max-w-2xl rounded-3xl">
+          <DialogDescription className="text-center py-12">
+            Não foi possível carregar o perfil. Tente novamente.
+          </DialogDescription>
+        </DialogContent>
+      </Dialog>
+    );
+  }
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -163,6 +204,9 @@ export function UserProfile({ open, onOpenChange }: UserProfileProps) {
           <DialogTitle className="text-2xl font-black uppercase text-center">
             Meu Perfil
           </DialogTitle>
+          <DialogDescription className="sr-only">
+            Gerencie seu perfil e visualize suas fotos e remixes
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
@@ -246,24 +290,24 @@ export function UserProfile({ open, onOpenChange }: UserProfileProps) {
             <StatCard 
               icon={<Zap className="w-5 h-5" />}
               label="Vibe"
-              value={profile.vibePoints}
+              value={profile.vibePoints || 0}
               color="text-[#FFB800]"
             />
             <StatCard 
               icon={<Star className="w-5 h-5" />}
               label="Responsa"
-              value={profile.responsaPoints}
+              value={profile.responsaPoints || 0}
               color="text-purple-500"
             />
             <StatCard 
               icon={<Camera className="w-5 h-5" />}
               label="Fotos"
-              value={profile._count.photos}
+              value={profile._count?.photos || 0}
             />
             <StatCard 
               icon={<Sparkles className="w-5 h-5" />}
               label="Remixes"
-              value={profile._count.remixes}
+              value={profile._count?.remixes || 0}
             />
           </div>
 
@@ -281,7 +325,7 @@ export function UserProfile({ open, onOpenChange }: UserProfileProps) {
                 <div className="text-right">
                   <p className="text-sm font-medium text-gray-500">Próximo: {getNextLevel()?.name}</p>
                   <p className="text-xs text-gray-400">
-                    {getNextLevel()!.minPoints - (profile.vibePoints + profile.responsaPoints)} pts restantes
+                    {getNextLevel()!.minPoints - ((profile.vibePoints || 0) + (profile.responsaPoints || 0))} pts restantes
                   </p>
                 </div>
               )}
@@ -296,7 +340,7 @@ export function UserProfile({ open, onOpenChange }: UserProfileProps) {
           </div>
 
           {/* Badges */}
-          {profile.badges.length > 0 && (
+          {profile.badges && profile.badges.length > 0 && (
             <div>
               <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-3">
                 Conquistas
@@ -317,11 +361,11 @@ export function UserProfile({ open, onOpenChange }: UserProfileProps) {
             <TabsList className="grid w-full grid-cols-2 rounded-2xl">
               <TabsTrigger value="photos" className="rounded-xl">
                 <Camera className="w-4 h-4 mr-2" />
-                Minhas Fotos ({profile._count.photos})
+                Minhas Fotos ({profile._count?.photos || 0})
               </TabsTrigger>
               <TabsTrigger value="remixes" className="rounded-xl">
                 <Sparkles className="w-4 h-4 mr-2" />
-                Meus Remixes ({profile._count.remixes})
+                Meus Remixes ({profile._count?.remixes || 0})
               </TabsTrigger>
             </TabsList>
 
