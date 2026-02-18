@@ -1,0 +1,140 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_DATABASE_URL")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+model User {
+  id             String      @id @default(cuid())
+  email          String      @unique
+  name           String?
+  username       String?     @unique
+  bio            String?
+  avatar         String?
+  googleId       String?     @unique
+  password       String?
+  vibePoints     Int         @default(0)
+  responsaPoints Int         @default(0)
+  level          Int         @default(1)
+  role           Role        @default(USER)
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+  photos         Photo[]
+  remixes        Remix[]
+  comments       Comment[]
+  likes          Like[]
+  badges         UserBadge[]
+}
+
+model Photo {
+  id             String     @id @default(cuid())
+  title          String
+  description    String?
+  imageUrl       String
+  thumbnailUrl   String?
+  tags           String
+  authorId       String
+  vibeCount      Int        @default(0)
+  commentCount   Int        @default(0)
+  isGoldStandard Boolean    @default(false)
+  isSynced       Boolean    @default(false)
+  syncedAt       DateTime?
+  // Geolocation fields
+  latitude       Float?
+  longitude      Float?
+  location       String?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  author         User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  remixes        Remix[]
+  comments       Comment[]
+  likes          Like[]
+
+  @@index([latitude, longitude])
+  @@index([tags])
+}
+
+model Remix {
+  id              String     @id @default(cuid())
+  title           String?
+  imageUrl        String
+  originalPhotoId String
+  creatorId       String
+  vibeCount       Int        @default(0)
+  commentCount    Int        @default(0)
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  originalPhoto   Photo      @relation(fields: [originalPhotoId], references: [id], onDelete: Cascade)
+  creator         User       @relation(fields: [creatorId], references: [id], onDelete: Cascade)
+  comments        Comment[]
+  likes           Like[]
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  userId    String
+  photoId   String?
+  remixId   String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photo     Photo?   @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  remix     Remix?   @relation(fields: [remixId], references: [id], onDelete: Cascade)
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  userId    String
+  photoId   String?
+  remixId   String?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  photo     Photo?   @relation(fields: [photoId], references: [id], onDelete: Cascade)
+  remix     Remix?   @relation(fields: [remixId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, photoId])
+  @@unique([userId, remixId])
+}
+
+model Badge {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  description String
+  icon        String
+  type        String
+  requirement String
+  users       UserBadge[]
+}
+
+model UserBadge {
+  id       String   @id @default(cuid())
+  userId   String
+  badgeId  String
+  earnedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  badge    Badge    @relation(fields: [badgeId], references: [id])
+
+  @@unique([userId, badgeId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
