@@ -181,6 +181,7 @@ export interface TextElement {
 
 export interface StickerElement {
   id: string;
+  name?: string;
   src: string;
   x: number;
   y: number;

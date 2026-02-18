@@ -16,15 +16,12 @@ export async function GET(request: NextRequest) {
 
     console.log("[PHOTOS API] Request params:", { type, sort, tag, userId, search, limit, offset, withLocation });
 
-    // Build where clause for PostgreSQL
+    // Build where clause
     const where: any = {};
     
-    // PostgreSQL case-insensitive search using mode
+    // SQLite is case-insensitive by default for LIKE
     if (tag) {
-      where.tags = { 
-        contains: tag,
-        mode: 'insensitive' as const
-      };
+      where.tags = { contains: tag };
     }
     
     if (userId) {
@@ -33,9 +30,9 @@ export async function GET(request: NextRequest) {
     
     if (search) {
       where.OR = [
-        { title: { contains: search, mode: 'insensitive' as const } },
-        { description: { contains: search, mode: 'insensitive' as const } },
-        { tags: { contains: search, mode: 'insensitive' as const } },
+        { title: { contains: search } },
+        { description: { contains: search } },
+        { tags: { contains: search } },
       ];
     }
     

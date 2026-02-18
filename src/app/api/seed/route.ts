@@ -96,7 +96,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Create users
-    const users = [];
+    const users: { id: string; email: string; name: string | null; username: string | null }[] = [];
     for (const userData of SAMPLE_USERS) {
       const user = await prisma.user.upsert({
         where: { email: userData.email },
@@ -106,6 +106,7 @@ export async function GET(request: NextRequest) {
           vibePoints: Math.floor(Math.random() * 100),
           level: Math.floor(Math.random() * 5) + 1,
         },
+        select: { id: true, email: true, name: true, username: true }
       });
       users.push(user);
     }

@@ -7,9 +7,11 @@ import { Photo } from "@/store/useAppStore";
 import { useSession } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 
-interface BattlePhoto extends Photo {
+interface BattlePhoto extends Omit<Photo, '_count'> {
   _count?: {
     likes: number;
+    comments?: number;
+    remixes?: number;
   };
 }
 

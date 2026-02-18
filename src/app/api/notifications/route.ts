@@ -63,20 +63,20 @@ export async function GET(request: NextRequest) {
 
     // Combine and format notifications
     const notifications = [
-      ...likesOnPhotos.map((like) => ({
+      ...likesOnPhotos.filter(like => like.photo).map((like) => ({
         id: like.id,
         type: "like",
         user: like.user,
         photo: like.photo,
-        message: `${like.user.name || "Alguém"} curtiu sua foto "${like.photo.title}"`,
+        message: `${like.user.name || "Alguém"} curtiu sua foto "${like.photo!.title}"`,
         createdAt: like.createdAt.toISOString(),
       })),
-      ...commentsOnPhotos.map((comment) => ({
+      ...commentsOnPhotos.filter(comment => comment.photo).map((comment) => ({
         id: comment.id,
         type: "comment",
         user: comment.user,
         photo: comment.photo,
-        message: `${comment.user.name || "Alguém"} comentou em "${comment.photo.title}"`,
+        message: `${comment.user.name || "Alguém"} comentou em "${comment.photo!.title}"`,
         content: comment.content,
         createdAt: comment.createdAt.toISOString(),
       })),

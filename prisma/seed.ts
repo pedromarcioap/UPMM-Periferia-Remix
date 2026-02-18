@@ -1,258 +1,141 @@
-import { PrismaClient } from "@prisma/client";
-import { hashSync } from "bcrypt";
+import { PrismaClient } from '@prisma/client'
 
-const prisma = new PrismaClient();
+const prisma = new PrismaClient()
+
+// Static image URLs mapped to tags (using Pexels images)
+const IMAGES_BY_TAG: Record<string, string[]> = {
+  "Graffiti": [
+    "https://images.pexels.com/photos/1525042/pexels-photo-1525042.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/1112598/pexels-photo-1112598.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/269140/pexels-photo-269140.jpeg?auto=compress&cs=tinysrgb&w=800",
+  ],
+  "Arquitetura": [
+    "https://images.pexels.com/photos/323780/pexels-photo-323780.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/221546/pexels-photo-221546.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/301930/pexels-photo-301930.jpeg?auto=compress&cs=tinysrgb&w=800",
+  ],
+  "Rua": [
+    "https://images.pexels.com/photos/1038914/pexels-photo-1038914.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/1346150/pexels-photo-1346150.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/2161447/pexels-photo-2161447.jpeg?auto=compress&cs=tinysrgb&w=800",
+  ],
+  "Cotidiano": [
+    "https://images.pexels.com/photos/1007427/pexels-photo-1007427.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/1040880/pexels-photo-1040880.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/1529273/pexels-photo-1529273.jpeg?auto=compress&cs=tinysrgb&w=800",
+  ],
+  "Cores": [
+    "https://images.pexels.com/photos/1133353/pexels-photo-1133353.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/1579258/pexels-photo-1579258.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/1367192/pexels-photo-1367192.jpeg?auto=compress&cs=tinysrgb&w=800",
+  ],
+  "Texturas": [
+    "https://images.pexels.com/photos/235985/pexels-photo-235985.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/689585/pexels-photo-689585.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/1022928/pexels-photo-1022928.jpeg?auto=compress&cs=tinysrgb&w=800",
+  ],
+  "NaturezaUrbana": [
+    "https://images.pexels.com/photos/1287089/pexels-photo-1287089.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/1591374/pexels-photo-1591374.jpeg?auto=compress&cs=tinysrgb&w=800",
+    "https://images.pexels.com/photos/2245435/pexels-photo-2245435.jpeg?auto=compress&cs=tinysrgb&w=800",
+  ],
+}
+
+const SAMPLE_USERS = [
+  { name: "Maria Silva", email: "maria@upmm.local", username: "maria_fotografias" },
+  { name: "João Santos", email: "joao@upmm.local", username: "joao_urbano" },
+  { name: "Ana Oliveira", email: "ana@upmm.local", username: "ana_cores" },
+  { name: "Pedro Lima", email: "pedro@upmm.local", username: "pedro_studio" },
+  { name: "Carla Souza", email: "carla@upmm.local", username: "carla_art" },
+]
+
+const PHOTO_TITLES = [
+  "Arte Urbana no Centro",
+  "Cores da Periferia",
+  "Texturas do Cotidiano",
+  "Beleza Escondida",
+  "Ritmo das Ruas",
+  "Luz e Sombra",
+  "Entre Becos",
+  "Vida Comunitária",
+  "Paredes que Falam",
+  "Momentos Urbanos",
+  "Essência Local",
+  "Contrastes",
+]
 
 async function main() {
-  console.log("🌱 Seeding database...");
+  console.log("🌱 Starting seed...")
 
-  // Create badges
-  const badges = await Promise.all([
-    prisma.badge.upsert({
-      where: { name: "Primeiro Click" },
-      update: {},
-      create: {
-        name: "Primeiro Click",
-        description: "Realizou o primeiro upload de foto",
-        icon: "📷",
-        type: "upload",
-        requirement: "first_upload",
+  // Clean database
+  await prisma.like.deleteMany()
+  await prisma.comment.deleteMany()
+  await prisma.remix.deleteMany()
+  await prisma.photo.deleteMany()
+  await prisma.userBadge.deleteMany()
+  await prisma.user.deleteMany()
+  console.log("✅ Database cleaned")
+
+  // Create users
+  const users = []
+  for (const userData of SAMPLE_USERS) {
+    const user = await prisma.user.create({
+      data: {
+        ...userData,
+        vibePoints: Math.floor(Math.random() * 100),
+        level: Math.floor(Math.random() * 5) + 1,
       },
-    }),
-    prisma.badge.upsert({
-      where: { name: "Alquimista" },
-      update: {},
-      create: {
-        name: "Alquimista",
-        description: "Criou o primeiro remix",
-        icon: "⚗️",
-        type: "remix",
-        requirement: "first_remix",
-      },
-    }),
-    prisma.badge.upsert({
-      where: { name: "Comunidade" },
-      update: {},
-      create: {
-        name: "Comunidade",
-        description: "Fez 10 comentários construtivos",
-        icon: "💬",
-        type: "social",
-        requirement: "10_comments",
-      },
-    }),
-  ]);
-
-  console.log(`✅ Created ${badges.length} badges`);
-
-  // Create admin user
-  const adminPassword = hashSync("admin123", 10);
-  const admin = await prisma.user.upsert({
-    where: { email: "admin@upmm.org" },
-    update: {},
-    create: {
-      email: "admin@upmm.org",
-      name: "Admin UPMM",
-      username: "admin_upmm",
-      password: adminPassword,
-      bio: "Administrador da plataforma UPMM",
-      role: "ADMIN",
-      vibePoints: 1000,
-      responsaPoints: 500,
-      level: 3,
-    },
-  });
-
-  console.log(`✅ Created admin user: ${admin.email}`);
-
-  // Create demo users
-  const users = await Promise.all([
-    prisma.user.upsert({
-      where: { email: "maria@upmm.org" },
-      update: {},
-      create: {
-        email: "maria@upmm.org",
-        name: "Maria Silva",
-        username: "maria_fotografa",
-        bio: "Fotógrafa de rua apaixonada por capturar a essência da periferia",
-        vibePoints: 350,
-        responsaPoints: 100,
-        level: 2,
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: "joao@upmm.org" },
-      update: {},
-      create: {
-        email: "joao@upmm.org",
-        name: "João Santos",
-        username: "joao_grafite",
-        bio: "Artista visual e grafiteiro da Zona Leste",
-        vibePoints: 520,
-        responsaPoints: 200,
-        level: 3,
-      },
-    }),
-    prisma.user.upsert({
-      where: { email: "ana@upmm.org" },
-      update: {},
-      create: {
-        email: "ana@upmm.org",
-        name: "Ana Costa",
-        username: "ana_olhar",
-        bio: "Designer e criadora de conteúdo visual",
-        vibePoints: 180,
-        responsaPoints: 50,
-        level: 2,
-      },
-    }),
-  ]);
-
-  console.log(`✅ Created ${users.length} demo users`);
-
-  // Create sample photos
-  const samplePhotos = [
-    {
-      title: "Beco Colorido",
-      description: "Grafite no beco da Vila Madalena, cores vibrantes que contam histórias",
-      tags: "Graffiti,Cores,Arquitetura",
-      vibeCount: 45,
-      isGoldStandard: true,
-    },
-    {
-      title: "Cores do Entardecer",
-      description: "O pôr do sol pintando as casas do morro com tons dourados",
-      tags: "Cores,NaturezaUrbana,Rua",
-      vibeCount: 67,
-      isGoldStandard: true,
-      isSynced: true,
-    },
-    {
-      title: "Textura Urbana",
-      description: "Paredes descascadas revelando camadas de história",
-      tags: "Texturas,Arquitetura,Cotidiano",
-      vibeCount: 32,
-    },
-    {
-      title: "Rua de Terra",
-      description: "O cotidiano simples de uma rua não asfaltada",
-      tags: "Rua,Cotidiano,Texturas",
-      vibeCount: 28,
-    },
-    {
-      title: "Arte nas Paredes",
-      description: "Expressão artística que transforma espaços esquecidos",
-      tags: "Graffiti,Arquitetura,Cores",
-      vibeCount: 89,
-      isGoldStandard: true,
-    },
-    {
-      title: "Janelas da Comunidade",
-      description: "Cada janela conta uma história diferente",
-      tags: "Arquitetura,Cotidiano,Rua",
-      vibeCount: 41,
-    },
-    {
-      title: "Grafite Político",
-      description: "Arte como forma de expressão e resistência",
-      tags: "Graffiti,Cores,Rua",
-      vibeCount: 76,
-      isGoldStandard: true,
-    },
-    {
-      title: "Contrastes",
-      description: "Onde o antigo encontra o novo nas periferias",
-      tags: "Arquitetura,Texturas,Cores",
-      vibeCount: 53,
-    },
-    {
-      title: "Natureza Urbana",
-      description: "Plantas crescendo entre concreto e tijolos",
-      tags: "NaturezaUrbana,Texturas,Cotidiano",
-      vibeCount: 38,
-    },
-    {
-      title: "Cores da Favela",
-      description: "A paleta vibrante das casas coloridas",
-      tags: "Cores,Arquitetura,Rua",
-      vibeCount: 94,
-      isGoldStandard: true,
-      isSynced: true,
-    },
-    {
-      title: "Beco dos Artistas",
-      description: "Onde a arte floresce em cada esquina",
-      tags: "Graffiti,Arquitetura,Cores",
-      vibeCount: 61,
-    },
-    {
-      title: "Vida Noturna",
-      description: "As luzes da periferia após o entardecer",
-      tags: "Cotidiano,Rua,Cores",
-      vibeCount: 47,
-    },
-  ];
-
-  const placeholderImages = [
-    "https://images.unsplash.com/photo-1518098268026-4e89f1a2cd8e?w=800",
-    "https://images.unsplash.com/photo-1515542622106-78bda8ba0e5b?w=800",
-    "https://images.unsplash.com/photo-1506905925346-21bda4d32df4?w=800",
-    "https://images.unsplash.com/photo-1496442226666-8d4d0e62e6e9?w=800",
-    "https://images.unsplash.com/photo-1517935706615-2717063c2225?w=800",
-    "https://images.unsplash.com/photo-1493238792000-8113da705763?w=800",
-    "https://images.unsplash.com/photo-1514565131-fce0801e5785?w=800",
-    "https://images.unsplash.com/photo-1480714378408-67cf0d13bc1b?w=800",
-    "https://images.unsplash.com/photo-1519681393784-d120267933ba?w=800",
-    "https://images.unsplash.com/photo-1519751138087-5bf79df62d5b?w=800",
-    "https://images.unsplash.com/photo-1502082553048-f009c37129b9?w=800",
-    "https://images.unsplash.com/photo-1513002749550-c59d786b8e6c?w=800",
-  ];
-
-  let photoIndex = 0;
-  for (const photoData of samplePhotos) {
-    const authorId = users[photoIndex % users.length].id;
-    
-    await prisma.photo.upsert({
-      where: { id: `photo-${photoIndex + 1}` },
-      update: {},
-      create: {
-        id: `photo-${photoIndex + 1}`,
-        ...photoData,
-        imageUrl: placeholderImages[photoIndex % placeholderImages.length],
-        thumbnailUrl: placeholderImages[photoIndex % placeholderImages.length],
-        authorId,
-        syncedAt: photoData.isSynced ? new Date() : null,
-      },
-    });
-    photoIndex++;
+    })
+    users.push(user)
+    console.log(`✅ Created user: ${user.name}`)
   }
 
-  console.log(`✅ Created ${samplePhotos.length} sample photos`);
+  // Create photos
+  let photoCount = 0
+  const tags = Object.keys(IMAGES_BY_TAG)
 
-  // Award initial badges
-  const primeiroClickBadge = await prisma.badge.findFirst({
-    where: { name: "Primeiro Click" },
-  });
+  for (const tag of tags) {
+    const images = IMAGES_BY_TAG[tag]
+    
+    for (let i = 0; i < images.length; i++) {
+      const imageUrl = images[i]
+      const randomUser = users[Math.floor(Math.random() * users.length)]
+      const randomTitle = PHOTO_TITLES[Math.floor(Math.random() * PHOTO_TITLES.length)]
+      
+      // Add 1-3 additional tags
+      const additionalTags = tags
+        .filter(t => t !== tag)
+        .sort(() => Math.random() - 0.5)
+        .slice(0, Math.floor(Math.random() * 2) + 1)
+      
+      const allTags = [tag, ...additionalTags].join(",")
 
-  if (primeiroClickBadge) {
-    for (const user of users) {
-      await prisma.userBadge.upsert({
-        where: { userId_badgeId: { userId: user.id, badgeId: primeiroClickBadge.id } },
-        update: {},
-        create: { userId: user.id, badgeId: primeiroClickBadge.id },
-      });
+      await prisma.photo.create({
+        data: {
+          title: `${randomTitle} - ${tag}`,
+          description: `Explorando a estética ${tag.toLowerCase()} nas ruas de Palmas`,
+          imageUrl,
+          thumbnailUrl: imageUrl,
+          tags: allTags,
+          authorId: randomUser.id,
+          vibeCount: Math.floor(Math.random() * 50),
+          isGoldStandard: Math.random() > 0.8,
+        },
+      })
+      photoCount++
     }
   }
 
-  console.log("✅ Awarded initial badges");
-  console.log("🎉 Seeding complete!");
+  console.log(`\n🎉 Seed completed!`)
+  console.log(`   Users: ${users.length}`)
+  console.log(`   Photos: ${photoCount}`)
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seeding failed:", e);
-    process.exit(1);
+    console.error("❌ Seed error:", e)
+    process.exit(1)
   })
   .finally(async () => {
-    await prisma.$disconnect();
-  });
+    await prisma.$disconnect()
+  })

@@ -118,7 +118,19 @@ declare module "next-auth" {
       name: string | null;
       email: string;
       image: string | null;
+      username?: string | null;
+      vibePoints?: number;
+      responsaPoints?: number;
+      level?: number;
+      role?: string;
     };
+  }
+  interface User {
+    username?: string | null;
+    vibePoints?: number;
+    responsaPoints?: number;
+    level?: number;
+    role?: string;
   }
 }
 

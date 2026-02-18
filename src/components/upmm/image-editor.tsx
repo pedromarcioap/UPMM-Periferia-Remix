@@ -70,6 +70,7 @@ interface TextElement {
 
 interface StickerElement {
   id: string;
+  name?: string;
   svg: string;
   x: number;
   y: number;
