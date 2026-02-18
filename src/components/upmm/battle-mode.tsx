@@ -63,11 +63,20 @@ export function BattleMode({ open, onOpenChange }: BattleModeProps) {
     setWinner(null);
     try {
       const res = await fetch("/api/battle");
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
       const data = await res.json();
-      setPhoto1(data.photo1);
-      setPhoto2(data.photo2);
+      if (data.photo1 && data.photo2) {
+        setPhoto1(data.photo1);
+        setPhoto2(data.photo2);
+      } else {
+        throw new Error("Invalid battle pair received");
+      }
     } catch (error) {
       console.error("Error fetching battle pair:", error);
+      // Show error message to user
+      // You could add a toast notification here
     } finally {
       setLoading(false);
     }
@@ -95,6 +104,10 @@ export function BattleMode({ open, onOpenChange }: BattleModeProps) {
         }),
       });
 
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
       const data = await res.json();
 
       if (data.success) {
@@ -102,13 +115,23 @@ export function BattleMode({ open, onOpenChange }: BattleModeProps) {
         setWinner(winnerPhoto);
         setStreak((prev) => prev + 1);
 
+        // Award points for winning
+        if (winnerPhoto.id === selectedId) {
+          // You could add points logic here
+        }
+
         // Wait 2 seconds before showing next pair
         setTimeout(() => {
           fetchBattlePair();
         }, 2000);
+      } else {
+        // Handle error case
+        console.error("Vote failed:", data.error);
       }
     } catch (error) {
       console.error("Error voting:", error);
+      // Show error message to user
+      // You could add a toast notification here
     } finally {
       setVoting(false);
     }

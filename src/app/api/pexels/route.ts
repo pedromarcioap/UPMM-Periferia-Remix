@@ -43,11 +43,13 @@ export async function GET(request: NextRequest) {
 
     // If no API key, return curated sample results
     if (!PEXELS_API_KEY) {
+      console.log("Pexels API key not found, using sample results");
       return NextResponse.json({
         photos: generateSampleResults(query),
         totalResults: 30,
         page: parseInt(page),
         perPage: parseInt(perPage),
+        success: true,
       });
     }
 
@@ -66,15 +68,42 @@ export async function GET(request: NextRequest) {
 
     const data: PexelsResponse = await response.json();
 
-    // Transform the response to a simpler format
+    // Transform the response to match our Photo interface
     const photos = data.photos.map((photo) => ({
-      id: photo.id,
-      width: photo.width,
-      height: photo.height,
-      photographer: photo.photographer,
-      photographerUrl: photo.photographer_url,
-      avgColor: photo.avg_color,
-      alt: photo.alt || `Photo by ${photo.photographer}`,
+      id: `pexels-${photo.id}`,
+      title: photo.alt || `Photo by ${photo.photographer}`,
+      description: `Fonte: Pexels - Foto por ${photo.photographer}`,
+      imageUrl: photo.src.large,
+      thumbnailUrl: photo.src.medium,
+      tags: "pexels,externa",
+      vibeCount: 0,
+      commentCount: 0,
+      remixCount: 0,
+      isGoldStandard: false,
+      isSynced: false,
+      communityGold: false,
+      latitude: null,
+      longitude: null,
+      location: null,
+      neighborhood: null,
+      city: null,
+      state: null,
+      country: null,
+      battleWins: 0,
+      battleLosses: 0,
+      createdAt: new Date().toISOString(),
+      author: {
+        id: "pexels",
+        name: photo.photographer,
+        username: photo.photographer,
+        avatar: null,
+        level: 1,
+      },
+      _count: {
+        likes: 0,
+        comments: 0,
+        remixes: 0,
+      },
       src: {
         original: photo.src.original,
         large: photo.src.large,
@@ -90,16 +119,18 @@ export async function GET(request: NextRequest) {
       page: data.page,
       perPage: data.per_page,
       nextPage: data.next_page,
+      success: true,
     });
   } catch (error) {
     console.error("Pexels API error:", error);
     
     // Return sample results on error
     return NextResponse.json({
-      photos: generateSampleResults(searchParams.get("query") || "urban"),
+      photos: generateSampleResults("urban"),
       totalResults: 30,
       page: 1,
       perPage: 15,
+      success: true,
     });
   }
 }

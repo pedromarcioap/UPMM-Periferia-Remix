@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Heart, MessageCircle, Sparkles, Globe, Eye, MapPin, Trophy, GitBranch, LogIn } from "lucide-react";
 import { Photo } from "@/store/useAppStore";
 import { useSession } from "next-auth/react";
@@ -24,6 +24,8 @@ export function PhotoCard({ photo, onRemix, onLike, onView, onGenealogy }: Photo
   const [likeCount, setLikeCount] = useState(photo.vibeCount);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [showLoginTooltip, setShowLoginTooltip] = useState(false);
+  const [isLiking, setIsLiking] = useState(false);
+  const [showHeartAnimation, setShowHeartAnimation] = useState(false);
 
   useEffect(() => {
     if (session?.user?.id) {
@@ -36,19 +38,34 @@ export function PhotoCard({ photo, onRemix, onLike, onView, onGenealogy }: Photo
   const handleLike = async () => {
     if (!session?.user?.id) return;
     
-    const res = await fetch("/api/likes", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        userId: session.user.id,
-        photoId: photo.id,
-      }),
-    });
+    setIsLiking(true);
     
-    const data = await res.json();
-    setLiked(data.liked);
-    setLikeCount(prev => data.liked ? prev + 1 : prev - 1);
-    onLike();
+    try {
+      const res = await fetch("/api/likes", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: session.user.id,
+          photoId: photo.id,
+        }),
+      });
+      
+      const data = await res.json();
+      setLiked(data.liked);
+      setLikeCount(prev => data.liked ? prev + 1 : prev - 1);
+      
+      // Show heart animation for like action
+      if (data.liked) {
+        setShowHeartAnimation(true);
+        setTimeout(() => setShowHeartAnimation(false), 600);
+      }
+      
+      onLike();
+    } catch (error) {
+      console.error("Error handling like:", error);
+    } finally {
+      setIsLiking(false);
+    }
   };
 
   const handleRemixClick = (e: React.MouseEvent) => {
@@ -207,21 +224,51 @@ export function PhotoCard({ photo, onRemix, onLike, onView, onGenealogy }: Photo
         </div>
 
         {/* Actions */}
-        <div className="flex items-center gap-2 pt-2">
+        <div className="flex items-center gap-2 pt-2 relative">
+          {/* Heart Animation */}
+          <AnimatePresence>
+            {showHeartAnimation && (
+              <motion.div
+                initial={{ scale: 0, opacity: 1 }}
+                animate={{ scale: [0, 1.2, 1], opacity: [1, 0.8, 0] }}
+                exit={{ scale: 0, opacity: 0 }}
+                className="absolute -top-8 left-1/2 -translate-x-1/2 z-10"
+              >
+                <Heart className="w-6 h-6 text-red-500 fill-current" />
+              </motion.div>
+            )}
+          </AnimatePresence>
+
           <motion.button
-            whileTap={{ scale: 0.9 }}
+            whileTap={{ scale: isLiking ? 1 : 0.9 }}
             onClick={(e) => {
               e.stopPropagation();
               if (isLoggedIn) {
                 handleLike();
               }
             }}
-            className={`flex items-center gap-1.5 transition-colors ${
+            className={`flex items-center gap-1.5 transition-colors relative ${
               liked ? "text-red-500" : "text-gray-400 hover:text-red-500"
             } ${!isLoggedIn ? "opacity-50" : ""}`}
+            disabled={isLiking}
           >
-            <Heart className={`w-4 h-4 ${liked ? "fill-current" : ""}`} />
-            <span className="text-xs font-medium">{likeCount}</span>
+            <motion.div
+              animate={{
+                scale: liked ? [1, 1.3, 1] : 1,
+                rotate: liked ? [0, 10, -10, 0] : 0
+              }}
+              transition={{ duration: 0.3 }}
+            >
+              <Heart className={`w-4 h-4 ${liked ? "fill-current" : ""}`} />
+            </motion.div>
+            <motion.span
+              key={likeCount}
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              className="text-xs font-medium"
+            >
+              {likeCount}
+            </motion.span>
           </motion.button>
           
           <div className="flex items-center gap-1.5 text-gray-400">

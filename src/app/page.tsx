@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { motion, AnimatePresence } from "framer-motion";
 import { PhotoCard } from "@/components/upmm/photo-card";
@@ -85,6 +85,7 @@ export default function HomePage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [selectedNeighborhood, setSelectedNeighborhood] = useState<string | null>(null);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Fetch photos
   const fetchPhotos = useCallback(async () => {
@@ -93,18 +94,84 @@ export default function HomePage() {
       const params = new URLSearchParams({
         type: "all",
         sort: sortBy,
+        limit: "20",
+        offset: "0",
         ...(selectedTag && selectedTag !== "Todas" && { tag: selectedTag }),
+        ...(searchQuery && { search: searchQuery }),
+        ...(selectedNeighborhood && selectedNeighborhood !== "Todos" && { neighborhood: selectedNeighborhood }),
       });
       
       const res = await fetch(`/api/photos?${params}`);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
       const data = await res.json();
       setPhotos(data.photos || []);
     } catch (error) {
       console.error("Error fetching photos:", error);
+      setPhotos([]);
     } finally {
       setLoading(false);
     }
-  }, [sortBy, selectedTag, setPhotos]);
+  }, [sortBy, selectedTag, searchQuery, selectedNeighborhood, setPhotos]);
+
+  // Search photos from Pexels API
+  const searchPexelsPhotos = useCallback(async (query: string) => {
+    if (!query.trim()) return;
+    
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/pexels?query=${encodeURIComponent(query)}&per_page=12`);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+      const data = await res.json();
+      const pexelsPhotos = data.photos.map((photo: any) => ({
+        id: `pexels-${photo.id}`,
+        title: photo.alt || `Photo by ${photo.photographer}`,
+        description: `Fonte: Pexels - Foto por ${photo.photographer}`,
+        imageUrl: photo.src.large,
+        thumbnailUrl: photo.src.medium,
+        tags: "pexels,externa",
+        vibeCount: 0,
+        commentCount: 0,
+        remixCount: 0,
+        isGoldStandard: false,
+        isSynced: false,
+        communityGold: false,
+        latitude: null,
+        longitude: null,
+        location: null,
+        neighborhood: null,
+        city: null,
+        state: null,
+        country: null,
+        battleWins: 0,
+        battleLosses: 0,
+        createdAt: new Date().toISOString(),
+        author: {
+          id: "pexels",
+          name: photo.photographer,
+          username: photo.photographer,
+          avatar: null,
+          level: 1,
+        },
+        _count: {
+          likes: 0,
+          comments: 0,
+          remixes: 0,
+        },
+      }));
+      
+      setPhotos(pexelsPhotos);
+    } catch (error) {
+      console.error("Error searching Pexels photos:", error);
+      // Show error message to user
+      // You could add a toast notification here
+    } finally {
+      setLoading(false);
+    }
+  }, [setPhotos]);
 
   useEffect(() => {
     fetchPhotos();
@@ -191,27 +258,8 @@ export default function HomePage() {
   };
 
   // Filter photos by neighborhood
-  const filteredPhotos = photos.filter(photo => {
-    // Search filter
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesSearch = (
-        photo.title.toLowerCase().includes(query) ||
-        photo.description?.toLowerCase().includes(query) ||
-        photo.tags.toLowerCase().includes(query) ||
-        photo.author.name?.toLowerCase().includes(query)
-      );
-      if (!matchesSearch) return false;
-    }
-
-    // Neighborhood filter
-    if (selectedNeighborhood && selectedNeighborhood !== "Todos") {
-      const photoNeighborhood = (photo as any).neighborhood;
-      if (photoNeighborhood !== selectedNeighborhood) return false;
-    }
-
-    return true;
-  });
+  // Remove client-side filtering since we're now using server-side search
+  const filteredPhotos = photos;
 
   return (
     <div className="min-h-screen bg-[#FDFCFB]">
@@ -356,9 +404,39 @@ export default function HomePage() {
                 type="text"
                 placeholder="Buscar em Palmas..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  const value = e.target.value;
+                  setSearchQuery(value);
+                  
+                  // Debouncing logic
+                  if (searchTimeoutRef.current) {
+                    clearTimeout(searchTimeoutRef.current);
+                  }
+                  
+                  if (value.trim()) {
+                    searchTimeoutRef.current = setTimeout(() => {
+                      fetchPhotos();
+                    }, 500);
+                  } else {
+                    // Reset to original photos when search is cleared
+                    fetchPhotos();
+                  }
+                }}
                 className="w-full pl-10 pr-4 py-2 rounded-xl border border-gray-200 focus:border-[#FFB800] focus:ring-2 focus:ring-[#FFB800]/20 outline-none text-sm"
               />
+              {searchQuery && (
+                <button
+                  onClick={() => {
+                    setSearchQuery("");
+                    fetchPhotos();
+                  }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              )}
             </div>
             
             <Tabs value={sortBy} onValueChange={(v) => setSortBy(v as "recent" | "popular")}>

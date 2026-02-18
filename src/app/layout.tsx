@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Montserrat } from "next/font/google";
 import "./globals.css";
+import "./custom-fonts.css";
 import { Providers } from "@/components/providers";
 
 const montserrat = Montserrat({
@@ -37,19 +38,9 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <head>
-        <style dangerouslySetInnerHTML={{
-          __html: `
-            @font-face {
-              font-family: 'Cocogoose';
-              src: local('Cocogoose Pro'), local('Cocogoose');
-              font-weight: 900;
-              font-display: swap;
-            }
-            :root {
-              --font-cocogoose: 'Cocogoose', 'Montserrat', system-ui, sans-serif;
-            }
-          `
-        }} />
+        <meta charSet="utf-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <link rel="icon" href="/favicon.ico" />
       </head>
       <body className={`${montserrat.variable} antialiased bg-[#FDFCFB] text-[#2D2A26] min-h-screen`}>
         <Providers>{children}</Providers>

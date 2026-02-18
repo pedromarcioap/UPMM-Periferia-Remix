@@ -65,54 +65,24 @@ export function MapView({ open, onOpenChange }: MapViewProps) {
   const [loading, setLoading] = useState(true);
   const [selectedPhoto, setSelectedPhoto] = useState<Photo | null>(null);
   const [mapReady, setMapReady] = useState(false);
+  const [selectedNeighborhood, setSelectedNeighborhood] = useState<string>("Todos");
+  const [customIcon, setCustomIcon] = useState<any>(null);
 
   useEffect(() => {
     if (open) {
       fetchPhotos();
-      // Dynamically import Leaflet CSS
-      import("leaflet/dist/leaflet.css");
       
-      // Fix Leaflet default marker icon
-      import("leaflet").then((L) => {
+      // Fix Leaflet default marker icon and create custom icon
+      import("leaflet").then(async (L) => {
         delete (L.Icon.Default.prototype as any)._getIconUrl;
         L.Icon.Default.mergeOptions({
           iconRetinaUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon-2x.png",
           iconUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-icon.png",
           shadowUrl: "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/images/marker-shadow.png",
         });
-        setMapReady(true);
-      });
-    }
-  }, [open]);
-
-  const fetchPhotos = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch("/api/photos?limit=100");
-      const data = await res.json();
-      // Filter only photos with location
-      const geoPhotos = (data.photos || []).filter(
-        (p: Photo) => p.latitude && p.longitude
-      );
-      setPhotos(geoPhotos);
-    } catch (error) {
-      console.error("Error fetching photos:", error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleMarkerClick = (photo: Photo) => {
-    setSelectedPhoto(photo);
-  };
-
-  // Create custom marker icon with UPMM colors
-  const createCustomIcon = useMemo(() => {
-    return () => {
-      if (typeof window !== "undefined") {
-        // eslint-disable-next-line @typescript-eslint/no-require-imports
-        const L = require("leaflet");
-        return L.divIcon({
+        
+        // Create custom icon
+        const icon = L.divIcon({
           className: "custom-marker",
           html: `
             <div style="
@@ -136,10 +106,46 @@ export function MapView({ open, onOpenChange }: MapViewProps) {
           iconAnchor: [18, 36],
           popupAnchor: [0, -36],
         });
+        setCustomIcon(icon);
+        setMapReady(true);
+      }).catch((error) => {
+        console.error("Error loading Leaflet:", error);
+      });
+    }
+  }, [open]);
+
+  useEffect(() => {
+    if (open) {
+      fetchPhotos();
+    }
+  }, [selectedNeighborhood]);
+
+  const fetchPhotos = async () => {
+    setLoading(true);
+    try {
+      const neighborhoodParam = selectedNeighborhood !== "Todos" ? `&neighborhood=${selectedNeighborhood}` : "";
+      const res = await fetch(`/api/photos?limit=100${neighborhoodParam}`);
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
       }
-      return null;
-    };
-  }, []);
+      const data = await res.json();
+      // Filter only photos with location
+      const geoPhotos = (data.photos || []).filter(
+        (p: Photo) => p.latitude && p.longitude
+      );
+      setPhotos(geoPhotos);
+    } catch (error) {
+      console.error("Error fetching photos:", error);
+      setPhotos([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleMarkerClick = (photo: Photo) => {
+    setSelectedPhoto(photo);
+  };
+
 
   if (!open) return null;
 
@@ -161,7 +167,7 @@ export function MapView({ open, onOpenChange }: MapViewProps) {
         >
           {/* Header */}
           <div className="absolute top-0 left-0 right-0 z-20 bg-white/95 backdrop-blur-sm px-4 py-3 border-b border-gray-100">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-[#FFB800] flex items-center justify-center">
                   <MapPin className="w-5 h-5 text-[#2D2A26]" />
@@ -171,14 +177,38 @@ export function MapView({ open, onOpenChange }: MapViewProps) {
                   <p className="text-xs text-gray-500">Explore {photos.length} pontos em Palmas, TO</p>
                 </div>
               </div>
-              <Button
-                variant="ghost"
-                size="icon"
-                onClick={() => onOpenChange(false)}
-                className="rounded-xl hover:bg-gray-100"
-              >
-                <X className="w-5 h-5" />
-              </Button>
+              <div className="flex items-center gap-2">
+                <select
+                  value={selectedNeighborhood}
+                  onChange={(e) => setSelectedNeighborhood(e.target.value)}
+                  className="px-3 py-1.5 bg-gray-100 rounded-lg text-sm font-medium text-[#2D2A26] border-0 focus:ring-2 focus:ring-[#FFB800]"
+                >
+                  <option value="Todos">Todos os Bairros</option>
+                  <option value="Plano Diretor Norte">Plano Diretor Norte</option>
+                  <option value="Plano Diretor Sul">Plano Diretor Sul</option>
+                  <option value="Graciosa">Graciosa</option>
+                  <option value="Taquaralto">Taquaralto</option>
+                  <option value="Taquarussu">Taquarussu</option>
+                  <option value="Jardim Aureny I">Jardim Aureny I</option>
+                  <option value="Jardim Aureny II">Jardim Aureny II</option>
+                  <option value="Jardim Aureny III">Jardim Aureny III</option>
+                  <option value="Santa Fé">Santa Fé</option>
+                  <option value="Ponta Negra">Ponta Negra</option>
+                  <option value="Arse 11">Arse 11</option>
+                  <option value="Arse 21">Arse 21</option>
+                  <option value="Lago Sul">Lago Sul</option>
+                  <option value="Beira Lago">Beira Lago</option>
+                  <option value="Centro Administrativo">Centro Administrativo</option>
+                </select>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onOpenChange(false)}
+                  className="rounded-xl hover:bg-gray-100"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -188,6 +218,14 @@ export function MapView({ open, onOpenChange }: MapViewProps) {
               <div className="flex items-center justify-center h-full">
                 <Loader2 className="w-8 h-8 text-[#FFB800] animate-spin" />
               </div>
+            ) : photos.length === 0 ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <MapPin className="w-16 h-16 mx-auto mb-4 text-gray-300" />
+                  <h3 className="text-lg font-bold text-gray-600 mb-2">Nenhuma foto com localização</h3>
+                  <p className="text-gray-400">Fotos com geolocalização aparecerão aqui</p>
+                </div>
+              </div>
             ) : mapReady ? (
               <MapContainer
                 center={PALMAS_CENTER}
@@ -196,14 +234,14 @@ export function MapView({ open, onOpenChange }: MapViewProps) {
                 style={{ zIndex: 1 }}
               >
                 <TileLayer
-                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+                  attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
                 {photos.map((photo) => (
                   <Marker
                     key={photo.id}
                     position={[photo.latitude!, photo.longitude!]}
-                    icon={createCustomIcon()}
+                    icon={customIcon}
                     eventHandlers={{
                       click: () => handleMarkerClick(photo),
                     }}
@@ -229,7 +267,10 @@ export function MapView({ open, onOpenChange }: MapViewProps) {
               </MapContainer>
             ) : (
               <div className="flex items-center justify-center h-full">
-                <p>Carregando mapa...</p>
+                <div className="text-center">
+                  <Loader2 className="w-8 h-8 text-[#FFB800] animate-spin mb-2" />
+                  <p>Carregando mapa...</p>
+                </div>
               </div>
             )}
           </div>

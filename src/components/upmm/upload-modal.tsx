@@ -232,14 +232,38 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
     const neighborhoodData = PALMAS_NEIGHBORHOODS.find(n => n.name === selectedNeighborhood);
 
     try {
+      let imageUrl = image;
+      let thumbnailUrl = image;
+
+      // If it's a local file, upload to Supabase Storage
+      if (imageFile) {
+        const formData = new FormData();
+        formData.append("file", imageFile);
+        formData.append("fileName", title.replace(/\s+/g, "-").toLowerCase());
+
+        const uploadRes = await fetch("/api/storage/upload", {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!uploadRes.ok) {
+          const errorData = await uploadRes.json();
+          throw new Error(errorData.error || "Erro ao fazer upload do arquivo");
+        }
+
+        const uploadData = await uploadRes.json();
+        imageUrl = uploadData.imageUrl;
+        thumbnailUrl = uploadData.thumbnailUrl;
+      }
+
       const res = await fetch("/api/photos", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           description,
-          imageUrl: image,
-          thumbnailUrl: image,
+          imageUrl,
+          thumbnailUrl,
           tags: selectedTags,
           authorId: session.user.id,
           // Geotagging
@@ -260,7 +284,7 @@ export function UploadModal({ open, onOpenChange, onSuccess }: UploadModalProps)
       });
 
       if (!res.ok) {
-        throw new Error("Erro ao fazer upload");
+        throw new Error("Erro ao salvar foto no banco de dados");
       }
 
       onSuccess();

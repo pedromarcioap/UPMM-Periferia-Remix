@@ -11,44 +11,22 @@ export async function GET(request: NextRequest) {
     const tag = searchParams.get("tag");
     const userId = searchParams.get("userId");
     const neighborhood = searchParams.get("neighborhood");
-    const searchQuery = searchParams.get("search");
     const limit = parseInt(searchParams.get("limit") || "20");
     const offset = parseInt(searchParams.get("offset") || "0");
 
-    // Build search conditions
-    const searchConditions: any = {};
-    
-    if (tag) {
-      searchConditions.tags = { contains: tag };
-    }
-    
-    if (userId) {
-      searchConditions.authorId = userId;
-    }
-    
-    if (neighborhood && neighborhood !== "Todos") {
-      searchConditions.neighborhood = neighborhood;
-    }
-    
-    if (searchQuery) {
-      const query = `%${searchQuery}%`;
-      searchConditions.OR = [
-        { title: { contains: searchQuery, mode: 'insensitive' } },
-        { description: { contains: searchQuery, mode: 'insensitive' } },
-        { tags: { contains: searchQuery, mode: 'insensitive' } },
-        { author: { name: { contains: searchQuery, mode: 'insensitive' } } },
-      ];
-    }
-
     const photos = await prisma.photo.findMany({
-      where: searchConditions,
+      where: {
+        ...(tag && { tags: { contains: tag } }),
+        ...(userId && { authorId: userId }),
+        ...(neighborhood && neighborhood !== "Todos" && { neighborhood }),
+      },
       include: {
         author: {
           select: { id: true, name: true, username: true, avatar: true, level: true },
         },
         _count: { select: { likes: true, comments: true, remixes: true } },
       },
-      orderBy: sort === "popular"
+      orderBy: sort === "popular" 
         ? { vibeCount: "desc" }
         : { createdAt: "desc" },
       take: limit,

@@ -9,11 +9,8 @@ export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(db),
   session: {
     strategy: "jwt",
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-    generateSessionToken: () => {
-      return randomUUID?.() ?? randomBytes(32).toString("hex");
-    },
   },
+  secret: process.env.NEXTAUTH_SECRET,
   pages: {
     signIn: "/",
     error: "/",
@@ -62,9 +59,9 @@ export const authOptions: NextAuthOptions = {
     }),
   ],
   callbacks: {
-    async session({ token, session }) {
-      if (token) {
-        session.user.id = token.id as string;
+    async session({ session, token }) {
+      if (token && session.user) {
+        session.user.id = token.sub as string;
         session.user.name = token.name as string;
         session.user.email = token.email as string;
         session.user.image = token.picture as string;
@@ -72,25 +69,23 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
     async jwt({ token, user }) {
+      if (user) {
+        token.sub = user.id;
+      }
+      
       const dbUser = await db.user.findFirst({
         where: {
           email: token.email!,
         },
       });
 
-      if (!dbUser) {
-        if (user) {
-          token.id = user.id;
-        }
-        return token;
+      if (dbUser) {
+        token.name = dbUser.name;
+        token.email = dbUser.email;
+        token.picture = dbUser.avatar;
       }
 
-      return {
-        id: dbUser.id,
-        name: dbUser.name,
-        email: dbUser.email,
-        picture: dbUser.avatar,
-      };
+      return token;
     },
   },
   events: {

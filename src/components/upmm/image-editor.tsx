@@ -217,14 +217,37 @@ export function ImageEditor({ photo, open, onOpenChange, onSave }: ImageEditorPr
           finalCtx.fillText(el.text, el.x * scaleX, el.y * scaleY);
         });
         
+        // Draw stickers (scaled)
+        stickers.forEach(st => {
+          const imgElement = new Image();
+          imgElement.src = "data:image/svg+xml;base64," + btoa(st.svg);
+          imgElement.onload = () => {
+            finalCtx.drawImage(
+              imgElement,
+              st.x * scaleX,
+              st.y * scaleY,
+              st.width * scaleX,
+              st.height * scaleY
+            );
+          };
+        });
+        
         // Get final image
         const finalImageUrl = finalCanvas.toDataURL("image/jpeg", 0.9);
-        onSave(finalImageUrl);
+        
+        // Validate the remix
+        if (finalImageUrl && finalImageUrl !== photo.imageUrl) {
+          onSave(finalImageUrl);
+        } else {
+          throw new Error("Remix não pode ser idêntico à imagem original");
+        }
       };
       
       img.src = photo.imageUrl;
     } catch (error) {
       console.error("Error saving remix:", error);
+      // Show error message to user
+      // You could add a toast notification here
     } finally {
       setSaving(false);
     }
